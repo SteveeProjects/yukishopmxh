@@ -1,0 +1,1097 @@
+{
+  "BUFF_PLATFORMS": [
+    {
+      "id": "TIKTOK",
+      "name": "TIKTOK",
+      "badge": "9 Dịch vụ • 17 Servers",
+      "iconBg": "bg-black border border-slate-700",
+      "iconText": "TT",
+      "desc": "Tăng view siêu tốc, follower kênh, tim video, chia sẻ và mắt livestream.",
+      "serviceCount": 9,
+      "serverCount": 17
+    },
+    {
+      "id": "FACEBOOK",
+      "name": "FACEBOOK",
+      "badge": "6 Dịch vụ • 15 Servers",
+      "iconBg": "bg-blue-600",
+      "iconText": "f",
+      "desc": "Tăng tương tác bài viết, theo dõi trang cá nhân, fanpage, thành viên nhóm và view video.",
+      "serviceCount": 6,
+      "serverCount": 15
+    },
+    {
+      "id": "INSTAGRAM",
+      "name": "INSTAGRAM",
+      "badge": "3 Dịch vụ • 4 Servers",
+      "iconBg": "bg-gradient-to-tr from-amber-500 via-rose-500 to-purple-600",
+      "iconText": "IG",
+      "desc": "Tăng like bài viết, follower trang cá nhân và view video chất lượng cao.",
+      "serviceCount": 3,
+      "serverCount": 4
+    },
+    {
+      "id": "YOUTUBE",
+      "name": "YOUTUBE",
+      "badge": "3 Dịch vụ • 8 Servers",
+      "iconBg": "bg-red-600",
+      "iconText": "▶",
+      "desc": "Tăng người đăng ký (subscribers), lượt thích (likes) và lượt xem (views) video.",
+      "serviceCount": 3,
+      "serverCount": 8
+    },
+    {
+      "id": "TELEGRAM",
+      "name": "TELEGRAM",
+      "badge": "5 Dịch vụ • 11 Servers",
+      "iconBg": "bg-sky-500",
+      "iconText": "✈",
+      "desc": "Tăng thành viên channel, reaction cảm xúc post, view bài viết, bot ref và member premium.",
+      "serviceCount": 5,
+      "serverCount": 11
+    },
+    {
+      "id": "THREADS",
+      "name": "THREADS",
+      "badge": "2 Dịch vụ • 2 Servers",
+      "iconBg": "bg-slate-900 border border-slate-700",
+      "iconText": "@",
+      "desc": "Tăng lượt thích bài viết (likes) và người theo dõi (followers) trang cá nhân Threads.",
+      "serviceCount": 2,
+      "serverCount": 2
+    }
+  ],
+  "BUFF_SERVICES": [
+    {
+      "code": "TT-VIEW",
+      "platform": "TIKTOK",
+      "name": "Tăng View TikTok",
+      "unit": "Views",
+      "minQty": 1000,
+      "maxQty": 2147483647,
+      "rateNote": "Từ 200đ / 1k",
+      "servers": [
+        {
+          "id": 3272,
+          "name": "View Tiktok ♻️ 30 Day",
+          "originalPrice": 392,
+          "retailPrice": 500,
+          "minQty": 1000,
+          "maxQty": 10000000,
+          "symbols": [
+            "♻️"
+          ],
+          "note": "Bảo hành 30 ngày"
+        },
+        {
+          "id": 3471,
+          "name": "View Tiktok ♻️ Trọn đời, ⚡",
+          "originalPrice": 1523,
+          "retailPrice": 1900,
+          "minQty": 2000,
+          "maxQty": 50000,
+          "symbols": [
+            "♻️",
+            "⚡"
+          ],
+          "note": "Bảo hành trọn đời, siêu tốc"
+        },
+        {
+          "id": 3472,
+          "name": "View TikTok Sale ⚡, ⚠️",
+          "originalPrice": 133,
+          "retailPrice": 200,
+          "minQty": 1000,
+          "maxQty": 2147483647,
+          "symbols": [
+            "⚡",
+            "⚠️"
+          ],
+          "note": "Giá rẻ nhất, không bảo hành"
+        }
+      ]
+    },
+    {
+      "code": "TT-FOL",
+      "platform": "TIKTOK",
+      "name": "Tăng Follower TikTok",
+      "unit": "Followers",
+      "minQty": 100,
+      "maxQty": 100000,
+      "rateNote": "Từ 39.500đ / 1k",
+      "servers": [
+        {
+          "id": 3463,
+          "name": "Theo Dõi TikTok VN 🇻🇳, ♻️ 10Day",
+          "originalPrice": 71760,
+          "retailPrice": 76000,
+          "minQty": 100,
+          "maxQty": 5000,
+          "symbols": [
+            "🇻🇳",
+            "♻️"
+          ],
+          "note": "Nick Việt thật, bảo hành 10 ngày"
+        },
+        {
+          "id": 3465,
+          "name": "Follow Tik Tok Tây 🌐, ♻️ 30Day",
+          "originalPrice": 101795,
+          "retailPrice": 107000,
+          "minQty": 100,
+          "maxQty": 2000,
+          "symbols": [
+            "🌐",
+            "♻️"
+          ],
+          "note": "Acc Tây, bảo hành 30 ngày"
+        },
+        {
+          "id": 3468,
+          "name": "Follow Tiktok tây 🌐, ⚡, ⚠️",
+          "originalPrice": 36310,
+          "retailPrice": 39500,
+          "minQty": 100,
+          "maxQty": 100000,
+          "symbols": [
+            "🌐",
+            "⚡",
+            "⚠️"
+          ],
+          "note": "Acc Tây siêu tốc, không bảo hành"
+        }
+      ]
+    },
+    {
+      "code": "TT-TIM",
+      "platform": "TIKTOK",
+      "name": "Tăng Tim TikTok",
+      "unit": "Tim",
+      "minQty": 100,
+      "maxQty": 10000000,
+      "rateNote": "Từ 19.500đ / 1k",
+      "servers": [
+        {
+          "id": 3238,
+          "name": "Tim Tik vn - Có bonus 🇻🇳, ⚠️, ⚡",
+          "originalPrice": 18144,
+          "retailPrice": 20500,
+          "minQty": 100,
+          "maxQty": 10000000,
+          "symbols": [
+            "🇻🇳",
+            "⚠️",
+            "⚡"
+          ],
+          "note": "Có tặng thêm tim"
+        },
+        {
+          "id": 3240,
+          "name": "Tim TikTok VN 🇻🇳, ⚡, ⚠️",
+          "originalPrice": 31096,
+          "retailPrice": 34000,
+          "minQty": 100,
+          "maxQty": 50000,
+          "symbols": [
+            "🇻🇳",
+            "⚡",
+            "⚠️"
+          ],
+          "note": "Tim Việt chạy nhanh"
+        },
+        {
+          "id": 3419,
+          "name": "Tim tik vn - ít tụt 🇻🇳, ⚠️",
+          "originalPrice": 17160,
+          "retailPrice": 19500,
+          "minQty": 100,
+          "maxQty": 2000,
+          "symbols": [
+            "🇻🇳",
+            "⚠️"
+          ],
+          "note": "Tim Việt ổn định, ít tụt"
+        },
+        {
+          "id": 3469,
+          "name": "Tim tik tây ♻️ 30Day, 🌐",
+          "originalPrice": 25449,
+          "retailPrice": 28000,
+          "minQty": 100,
+          "maxQty": 1000000,
+          "symbols": [
+            "♻️",
+            "🌐"
+          ],
+          "note": "Tim Tây, bảo hành 30 ngày"
+        },
+        {
+          "id": 3479,
+          "name": "Tim Tiktok Tây - Sale ⚠️, 🌐",
+          "originalPrice": 28058,
+          "retailPrice": 31000,
+          "minQty": 100,
+          "maxQty": 1000000,
+          "symbols": [
+            "⚠️",
+            "🌐"
+          ],
+          "note": "Tim Tây giá sale"
+        }
+      ]
+    },
+    {
+      "code": "TT-SHARE",
+      "platform": "TIKTOK",
+      "name": "Tăng Chia Sẻ TikTok",
+      "unit": "Shares",
+      "minQty": 500,
+      "maxQty": 2222222,
+      "rateNote": "7.200đ / 1k",
+      "servers": [
+        {
+          "id": 738,
+          "name": "Share Tik Tok",
+          "originalPrice": 5968,
+          "retailPrice": 7200,
+          "minQty": 500,
+          "maxQty": 2222222,
+          "symbols": [],
+          "note": "Tăng lượt chia sẻ video"
+        }
+      ]
+    },
+    {
+      "code": "TT-CMT",
+      "platform": "TIKTOK",
+      "name": "TikTok Comment",
+      "unit": "Comments",
+      "minQty": 20,
+      "maxQty": 50000,
+      "rateNote": "100.000đ / 1k",
+      "servers": [
+        {
+          "id": 3256,
+          "name": "Comment Tiktok tây ⚠️, 🌐, ⚡",
+          "originalPrice": 95024,
+          "retailPrice": 100000,
+          "minQty": 20,
+          "maxQty": 50000,
+          "symbols": [
+            "⚠️",
+            "🌐",
+            "⚡"
+          ],
+          "note": "Bình luận tiếng Anh / Tây"
+        }
+      ]
+    },
+    {
+      "code": "TT-FAV",
+      "platform": "TIKTOK",
+      "name": "Tăng Yêu Thích TikTok",
+      "unit": "Saves",
+      "minQty": 1000,
+      "maxQty": 1000000,
+      "rateNote": "650đ / 1k",
+      "servers": [
+        {
+          "id": 740,
+          "name": "Tăng Saves (yêu Thích) ⚡",
+          "originalPrice": 455,
+          "retailPrice": 650,
+          "minQty": 1000,
+          "maxQty": 1000000,
+          "symbols": [
+            "⚡"
+          ],
+          "note": "Tăng lượt lưu video yêu thích"
+        }
+      ]
+    },
+    {
+      "code": "TT-TIM-CMT",
+      "platform": "TIKTOK",
+      "name": "Tim Comment TikTok",
+      "unit": "Likes",
+      "minQty": 100,
+      "maxQty": 1000000,
+      "rateNote": "9.500đ / 1k",
+      "servers": [
+        {
+          "id": 1021,
+          "name": "Tim comment TikTok ⚠️",
+          "originalPrice": 8034,
+          "retailPrice": 9500,
+          "minQty": 100,
+          "maxQty": 1000000,
+          "symbols": [
+            "⚠️"
+          ],
+          "note": "Tăng like cho bình luận"
+        }
+      ]
+    },
+    {
+      "code": "TT-STORY",
+      "platform": "TIKTOK",
+      "name": "Tăng View Story TikTok",
+      "unit": "Views",
+      "minQty": 100,
+      "maxQty": 10000,
+      "rateNote": "13.500đ / 1k",
+      "servers": [
+        {
+          "id": 3480,
+          "name": "View story tiktok - điền link như buff fl",
+          "originalPrice": 11772,
+          "retailPrice": 13500,
+          "minQty": 100,
+          "maxQty": 10000,
+          "symbols": [],
+          "note": "Điền link trang cá nhân như buff follow"
+        }
+      ]
+    },
+    {
+      "code": "TT-LIVE",
+      "platform": "TIKTOK",
+      "name": "Tăng Mắt Live TikTok",
+      "unit": "Mắt Xem",
+      "minQty": 50,
+      "maxQty": 500,
+      "rateNote": "410.000đ / 1k",
+      "servers": [
+        {
+          "id": 3412,
+          "name": "Mắt Live Tik Vn 60 phút",
+          "originalPrice": 402133,
+          "retailPrice": 410000,
+          "minQty": 50,
+          "maxQty": 500,
+          "symbols": [
+            "🇻🇳"
+          ],
+          "note": "Duy trì mắt xem trong 60 phút"
+        }
+      ]
+    },
+    {
+      "code": "FB-LIKE",
+      "platform": "FACEBOOK",
+      "name": "Tăng Like Bài Viết",
+      "unit": "Reactions",
+      "minQty": 100,
+      "maxQty": 1000000,
+      "rateNote": "4.800đ / 1k",
+      "servers": [
+        {
+          "id": 3274,
+          "name": "Tăng 😡 Phẫn nộ, ⚠️, 🌐",
+          "originalPrice": 3866,
+          "retailPrice": 4800,
+          "minQty": 100,
+          "maxQty": 100000,
+          "symbols": [
+            "⚠️",
+            "🌐"
+          ],
+          "note": "Cảm xúc Phẫn nộ"
+        },
+        {
+          "id": 3275,
+          "name": "Tăng 😢 Buồn, ⚠️, 🌐",
+          "originalPrice": 3866,
+          "retailPrice": 4800,
+          "minQty": 100,
+          "maxQty": 1000000,
+          "symbols": [
+            "⚠️",
+            "🌐"
+          ],
+          "note": "Cảm xúc Buồn"
+        },
+        {
+          "id": 3276,
+          "name": "Tăng 😮 Wow, ⚠️, 🌐",
+          "originalPrice": 3866,
+          "retailPrice": 4800,
+          "minQty": 100,
+          "maxQty": 100000,
+          "symbols": [
+            "⚠️",
+            "🌐"
+          ],
+          "note": "Cảm xúc Wow"
+        },
+        {
+          "id": 3277,
+          "name": "Tăng 😆 Haha, ⚠️, 🌐",
+          "originalPrice": 3866,
+          "retailPrice": 4800,
+          "minQty": 100,
+          "maxQty": 100000,
+          "symbols": [
+            "⚠️",
+            "🌐"
+          ],
+          "note": "Cảm xúc Haha"
+        },
+        {
+          "id": 3278,
+          "name": "Tăng 🥰 Thương thương, ⚠️, 🌐",
+          "originalPrice": 3866,
+          "retailPrice": 4800,
+          "minQty": 100,
+          "maxQty": 100000,
+          "symbols": [
+            "⚠️",
+            "🌐"
+          ],
+          "note": "Cảm xúc Thương thương"
+        },
+        {
+          "id": 3279,
+          "name": "Tăng ❤️ Yêu thích, ⚠️, 🌐",
+          "originalPrice": 3866,
+          "retailPrice": 4800,
+          "minQty": 100,
+          "maxQty": 100000,
+          "symbols": [
+            "⚠️",
+            "🌐"
+          ],
+          "note": "Cảm xúc Yêu thích (Tim)"
+        },
+        {
+          "id": 3280,
+          "name": "Tăng 👍 Thích, ⚠️, 🌐",
+          "originalPrice": 3866,
+          "retailPrice": 4800,
+          "minQty": 100,
+          "maxQty": 100000,
+          "symbols": [
+            "⚠️",
+            "🌐"
+          ],
+          "note": "Cảm xúc Thích (Like)"
+        }
+      ]
+    },
+    {
+      "code": "FB-FOL",
+      "platform": "FACEBOOK",
+      "name": "Tăng Theo Dõi",
+      "unit": "Followers",
+      "minQty": 100,
+      "maxQty": 100000000,
+      "rateNote": "Từ 7.000đ / 1k",
+      "servers": [
+        {
+          "id": 3295,
+          "name": "Theo Dõi Fb Tây ⚠️, ⚡, 🌐",
+          "originalPrice": 5821,
+          "retailPrice": 7000,
+          "minQty": 100,
+          "maxQty": 100000000,
+          "symbols": [
+            "⚠️",
+            "⚡",
+            "🌐"
+          ],
+          "note": "Follower Tây siêu tốc"
+        },
+        {
+          "id": 3467,
+          "name": "Sub FB Vn Tk đẹp 🇻🇳",
+          "originalPrice": 18641,
+          "retailPrice": 21000,
+          "minQty": 100,
+          "maxQty": 5000,
+          "symbols": [
+            "🇻🇳"
+          ],
+          "note": "Sub nick Việt thật tài khoản đẹp"
+        }
+      ]
+    },
+    {
+      "code": "FB-GRP",
+      "platform": "FACEBOOK",
+      "name": "Tăng Thành Viên Nhóm",
+      "unit": "Members",
+      "minQty": 100,
+      "maxQty": 1000000,
+      "rateNote": "Từ 11.200đ / 1k",
+      "servers": [
+        {
+          "id": 3250,
+          "name": "Members Group, ⚡, 🌐",
+          "originalPrice": 14033,
+          "retailPrice": 16000,
+          "minQty": 100,
+          "maxQty": 200000,
+          "symbols": [
+            "⚡",
+            "🌐"
+          ],
+          "note": "Thành viên nhóm siêu tốc"
+        },
+        {
+          "id": 3304,
+          "name": "thành viên Group fb 🌐, ♻️ trọn đời",
+          "originalPrice": 10943,
+          "retailPrice": 12800,
+          "minQty": 100,
+          "maxQty": 1000000,
+          "symbols": [
+            "🌐",
+            "♻️"
+          ],
+          "note": "Bảo hành trọn đời"
+        },
+        {
+          "id": 3305,
+          "name": "member group sale 🌐, ⚠️",
+          "originalPrice": 9564,
+          "retailPrice": 11200,
+          "minQty": 100,
+          "maxQty": 1000000,
+          "symbols": [
+            "🌐",
+            "⚠️"
+          ],
+          "note": "Giá khuyến mãi không bảo hành"
+        }
+      ]
+    },
+    {
+      "code": "FB-VIEW",
+      "platform": "FACEBOOK",
+      "name": "Tăng View Video",
+      "unit": "Views",
+      "minQty": 1000,
+      "maxQty": 2000000,
+      "rateNote": "1.400đ / 1k",
+      "servers": [
+        {
+          "id": 724,
+          "name": "Tăng View Video ♻️ 30day, ⚡",
+          "originalPrice": 1034,
+          "retailPrice": 1400,
+          "minQty": 1000,
+          "maxQty": 2000000,
+          "symbols": [
+            "♻️",
+            "⚡"
+          ],
+          "note": "Bảo hành 30 ngày, siêu tốc"
+        }
+      ]
+    },
+    {
+      "code": "FB-STORY",
+      "platform": "FACEBOOK",
+      "name": "Tăng View Story",
+      "unit": "Views",
+      "minQty": 100,
+      "maxQty": 100000000,
+      "rateNote": "11.800đ / 1k",
+      "servers": [
+        {
+          "id": 3481,
+          "name": "mix cảm xúc 👍❤️🤗😆 Story Facebook",
+          "originalPrice": 10001,
+          "retailPrice": 11800,
+          "minQty": 100,
+          "maxQty": 100000000,
+          "symbols": [],
+          "note": "Xem kèm mix cảm xúc story"
+        }
+      ]
+    },
+    {
+      "code": "FB-SHARE",
+      "platform": "FACEBOOK",
+      "name": "Tăng Chia Sẻ Facebook",
+      "unit": "Shares",
+      "minQty": 100,
+      "maxQty": 2147483647,
+      "rateNote": "12.500đ / 1k",
+      "servers": [
+        {
+          "id": 3464,
+          "name": "Share post photo ⚡, ♻️ trọn đời",
+          "originalPrice": 10710,
+          "retailPrice": 12500,
+          "minQty": 100,
+          "maxQty": 2147483647,
+          "symbols": [
+            "⚡",
+            "♻️"
+          ],
+          "note": "Chia sẻ bài viết ảnh bảo hành trọn đời"
+        }
+      ]
+    },
+    {
+      "code": "IG-LIKE",
+      "platform": "INSTAGRAM",
+      "name": "Tăng Like Instagram",
+      "unit": "Likes",
+      "minQty": 100,
+      "maxQty": 1000000,
+      "rateNote": "Từ 6.000đ / 1k",
+      "servers": [
+        {
+          "id": 3423,
+          "name": "Like instagram tây ♻️ trọn đời 🌐",
+          "originalPrice": 5884,
+          "retailPrice": 7200,
+          "minQty": 100,
+          "maxQty": 100000,
+          "symbols": [
+            "♻️",
+            "🌐"
+          ],
+          "note": "Bảo hành trọn đời"
+        },
+        {
+          "id": 3424,
+          "name": "Like instagram tây 🌐, ⚡, ♻️ 30Day",
+          "originalPrice": 4866,
+          "retailPrice": 6000,
+          "minQty": 100,
+          "maxQty": 1000000,
+          "symbols": [
+            "🌐",
+            "⚡",
+            "♻️"
+          ],
+          "note": "Bảo hành 30 ngày siêu tốc"
+        }
+      ]
+    },
+    {
+      "code": "IG-FOL",
+      "platform": "INSTAGRAM",
+      "name": "Tăng Theo Dõi Instagram",
+      "unit": "Followers",
+      "minQty": 100,
+      "maxQty": 100000,
+      "rateNote": "60.000đ / 1k",
+      "servers": [
+        {
+          "id": 3425,
+          "name": "theo dõi ig vn - thủ công - chậm ⚠️, 🇻🇳",
+          "originalPrice": 56271,
+          "retailPrice": 60000,
+          "minQty": 100,
+          "maxQty": 100000,
+          "symbols": [
+            "⚠️",
+            "🇻🇳"
+          ],
+          "note": "Nick Việt lên chậm thủ công"
+        }
+      ]
+    },
+    {
+      "code": "IG-VIEW",
+      "platform": "INSTAGRAM",
+      "name": "Tăng View Instagram",
+      "unit": "Views",
+      "minQty": 1000,
+      "maxQty": 2147483647,
+      "rateNote": "80đ / 1k",
+      "servers": [
+        {
+          "id": 3421,
+          "name": "view instagram ⚠️, ⚡",
+          "originalPrice": 34,
+          "retailPrice": 80,
+          "minQty": 1000,
+          "maxQty": 2147483647,
+          "symbols": [
+            "⚠️",
+            "⚡"
+          ],
+          "note": "View video / Reels siêu tốc"
+        }
+      ]
+    },
+    {
+      "code": "YT-SUB",
+      "platform": "YOUTUBE",
+      "name": "YouTube Theo Dõi",
+      "unit": "Subscribers",
+      "minQty": 100,
+      "maxQty": 100000,
+      "rateNote": "Từ 300đ / 1k",
+      "servers": [
+        {
+          "id": 3283,
+          "name": "Theo Dõi YouTube ⚡, ⚠️",
+          "originalPrice": 198,
+          "retailPrice": 300,
+          "minQty": 1000,
+          "maxQty": 10000,
+          "symbols": [
+            "⚡",
+            "⚠️"
+          ],
+          "note": "Sub nhanh không bảo hành"
+        },
+        {
+          "id": 3315,
+          "name": "theo dõi YouTube 🌐, ⚠️, ⚡",
+          "originalPrice": 501,
+          "retailPrice": 700,
+          "minQty": 1000,
+          "maxQty": 100000,
+          "symbols": [
+            "🌐",
+            "⚠️",
+            "⚡"
+          ],
+          "note": "Sub quốc tế"
+        },
+        {
+          "id": 3474,
+          "name": "Theo Dõi Youtube 🌐, ⚡, ♻️ 30Day",
+          "originalPrice": 368060,
+          "retailPrice": 375000,
+          "minQty": 100,
+          "maxQty": 2000,
+          "symbols": [
+            "🌐",
+            "⚡",
+            "♻️"
+          ],
+          "note": "Sub chất lượng cao bảo hành 30 ngày"
+        }
+      ]
+    },
+    {
+      "code": "YT-LIKE",
+      "platform": "YOUTUBE",
+      "name": "YouTube Likes",
+      "unit": "Likes",
+      "minQty": 100,
+      "maxQty": 100000,
+      "rateNote": "Từ 12.800đ / 1k",
+      "servers": [
+        {
+          "id": 3282,
+          "name": "Like Video Youtube ♻️ 30Day, 🌐, ⚡",
+          "originalPrice": 30000,
+          "retailPrice": 33000,
+          "minQty": 100,
+          "maxQty": 100000,
+          "symbols": [
+            "♻️",
+            "🌐",
+            "⚡"
+          ],
+          "note": "Like video quốc tế bảo hành 30 ngày"
+        },
+        {
+          "id": 3473,
+          "name": "Like Youtube 🌐, ♻️ 30Day ⚡",
+          "originalPrice": 10972,
+          "retailPrice": 12800,
+          "minQty": 100,
+          "maxQty": 100000,
+          "symbols": [
+            "🌐",
+            "♻️",
+            "⚡"
+          ],
+          "note": "Bảo hành 30 ngày siêu tốc"
+        },
+        {
+          "id": 3475,
+          "name": "Like Youtube Vietnam ♻️ 30day, 🇻🇳",
+          "originalPrice": 33896,
+          "retailPrice": 37000,
+          "minQty": 100,
+          "maxQty": 10000,
+          "symbols": [
+            "♻️",
+            "🇻🇳"
+          ],
+          "note": "Like người dùng Việt bảo hành 30 ngày"
+        },
+        {
+          "id": 3476,
+          "name": "Like Youtube Tây 🌐, ⚠️",
+          "originalPrice": 10894,
+          "retailPrice": 12800,
+          "minQty": 100,
+          "maxQty": 100000,
+          "symbols": [
+            "🌐",
+            "⚠️"
+          ],
+          "note": "Like Tây không bảo hành"
+        }
+      ]
+    },
+    {
+      "code": "YT-VIEW",
+      "platform": "YOUTUBE",
+      "name": "YouTube View",
+      "unit": "Views",
+      "minQty": 100,
+      "maxQty": 1000000,
+      "rateNote": "34.500đ / 1k",
+      "servers": [
+        {
+          "id": 3281,
+          "name": "View video ytb ♻️ 30day",
+          "originalPrice": 31402,
+          "retailPrice": 34500,
+          "minQty": 100,
+          "maxQty": 1000000,
+          "symbols": [
+            "♻️"
+          ],
+          "note": "Bảo hành 30 ngày"
+        }
+      ]
+    },
+    {
+      "code": "TG-MEM",
+      "platform": "TELEGRAM",
+      "name": "Telegram Members",
+      "unit": "Members",
+      "minQty": 100,
+      "maxQty": 5000000,
+      "rateNote": "Từ 7.000đ / 1k",
+      "servers": [
+        {
+          "id": 3284,
+          "name": "Member telegram 🌐, ♻️ 365Day, - chậm",
+          "originalPrice": 11575,
+          "retailPrice": 13500,
+          "minQty": 100,
+          "maxQty": 100000,
+          "symbols": [
+            "🌐",
+            "♻️"
+          ],
+          "note": "Bảo hành 365 ngày"
+        },
+        {
+          "id": 3431,
+          "name": "Member Telegram 🌐, ⚡, ♻️ 180Day",
+          "originalPrice": 34726,
+          "retailPrice": 37500,
+          "minQty": 100,
+          "maxQty": 5000000,
+          "symbols": [
+            "🌐",
+            "⚡",
+            "♻️"
+          ],
+          "note": "Bảo hành 180 ngày siêu tốc"
+        },
+        {
+          "id": 3484,
+          "name": "Member Telegram Tây 🌐, ⚠️",
+          "originalPrice": 5773,
+          "retailPrice": 7000,
+          "minQty": 100,
+          "maxQty": 50000,
+          "symbols": [
+            "🌐",
+            "⚠️"
+          ],
+          "note": "Member Tây không bảo hành"
+        }
+      ]
+    },
+    {
+      "code": "TG-REACT",
+      "platform": "TELEGRAM",
+      "name": "Telegram Tăng Cảm Xúc Post",
+      "unit": "Reactions",
+      "minQty": 1000,
+      "maxQty": 10000,
+      "rateNote": "700đ / 1k",
+      "servers": [
+        {
+          "id": 3285,
+          "name": "Tăng Reaction Tích Cực [👍❤️🔥...] + Free View",
+          "originalPrice": 487,
+          "retailPrice": 700,
+          "minQty": 1000,
+          "maxQty": 10000,
+          "symbols": [],
+          "note": "Tặng kèm lượt xem bài viết"
+        },
+        {
+          "id": 3286,
+          "name": "Tăng Reaction Tiêu Cực [👎😱🤬...] + Free View",
+          "originalPrice": 487,
+          "retailPrice": 700,
+          "minQty": 1000,
+          "maxQty": 10000,
+          "symbols": [],
+          "note": "Tặng kèm lượt xem bài viết"
+        },
+        {
+          "id": 3287,
+          "name": "Tăng Reaction Premium Tiêu Cực [🥱💔🥴...] + Free View",
+          "originalPrice": 487,
+          "retailPrice": 700,
+          "minQty": 1000,
+          "maxQty": 10000,
+          "symbols": [],
+          "note": "Reaction Premium tiêu cực"
+        },
+        {
+          "id": 3288,
+          "name": "Tăng Reaction Premium Tích Cực [💯❤️🔥🕊...] + Free View",
+          "originalPrice": 487,
+          "retailPrice": 700,
+          "minQty": 1000,
+          "maxQty": 10000,
+          "symbols": [],
+          "note": "Reaction Premium tích cực"
+        }
+      ]
+    },
+    {
+      "code": "TG-VIEW",
+      "platform": "TELEGRAM",
+      "name": "Telegram Tăng View",
+      "unit": "Views",
+      "minQty": 500,
+      "maxQty": 10000000,
+      "rateNote": "Từ 200đ / 1k",
+      "servers": [
+        {
+          "id": 3301,
+          "name": "View Post tele real ⚡",
+          "originalPrice": 2636,
+          "retailPrice": 3300,
+          "minQty": 500,
+          "maxQty": 1000000,
+          "symbols": [
+            "⚡"
+          ],
+          "note": "View thật người dùng thực"
+        },
+        {
+          "id": 3302,
+          "name": "View Post telegram ⚡",
+          "originalPrice": 117,
+          "retailPrice": 200,
+          "minQty": 1000,
+          "maxQty": 10000000,
+          "symbols": [
+            "⚡"
+          ],
+          "note": "View nhanh số lượng lớn"
+        }
+      ]
+    },
+    {
+      "code": "TG-BOT",
+      "platform": "TELEGRAM",
+      "name": "Telegram Bot Start-Ref",
+      "unit": "Starts",
+      "minQty": 100,
+      "maxQty": 1000000,
+      "rateNote": "8.000đ / 1k",
+      "servers": [
+        {
+          "id": 3466,
+          "name": "TeleGram Bot /Start ⚡, ♻️ 30Day",
+          "originalPrice": 6617,
+          "retailPrice": 8000,
+          "minQty": 100,
+          "maxQty": 1000000,
+          "symbols": [
+            "⚡",
+            "♻️"
+          ],
+          "note": "Bấm Start bot kèm ref link"
+        }
+      ]
+    },
+    {
+      "code": "TG-PREM",
+      "platform": "TELEGRAM",
+      "name": "Members Premium",
+      "unit": "Premium Members",
+      "minQty": 100,
+      "maxQty": 100000,
+      "rateNote": "240.000đ / 1k",
+      "servers": [
+        {
+          "id": 3258,
+          "name": "Member tele premium ♻️ 30 day",
+          "originalPrice": 232805,
+          "retailPrice": 240000,
+          "minQty": 100,
+          "maxQty": 100000,
+          "symbols": [
+            "♻️"
+          ],
+          "note": "Tài khoản có Telegram Premium"
+        }
+      ]
+    },
+    {
+      "code": "TH-LIKE",
+      "platform": "THREADS",
+      "name": "Threads Likes",
+      "unit": "Likes",
+      "minQty": 100,
+      "maxQty": 10000,
+      "rateNote": "39.500đ / 1k",
+      "servers": [
+        {
+          "id": 3483,
+          "name": "Like thread 🌐, ⚠️, ⚡",
+          "originalPrice": 36461,
+          "retailPrice": 39500,
+          "minQty": 100,
+          "maxQty": 10000,
+          "symbols": [
+            "🌐",
+            "⚠️",
+            "⚡"
+          ],
+          "note": "Like Threads quốc tế"
+        }
+      ]
+    },
+    {
+      "code": "TH-FOL",
+      "platform": "THREADS",
+      "name": "Threads Followers",
+      "unit": "Followers",
+      "minQty": 100,
+      "maxQty": 10000,
+      "rateNote": "39.500đ / 1k",
+      "servers": [
+        {
+          "id": 3482,
+          "name": "Theo dõi Thread 🌐, ⚠️",
+          "originalPrice": 36461,
+          "retailPrice": 39500,
+          "minQty": 100,
+          "maxQty": 10000,
+          "symbols": [
+            "🌐",
+            "⚠️"
+          ],
+          "note": "Follower Threads quốc tế"
+        }
+      ]
+    }
+  ]
+}

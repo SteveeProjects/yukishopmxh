@@ -1,0 +1,24 @@
+{
+  "name": "Yuki Web V4 — Nền Tảng Dịch Vụ Số",
+  "short_name": "Yuki V4",
+  "description": "Nền tảng thương mại dịch vụ số thế hệ mới, nạp ví VietQR, hội viên VIP/SVIP và 23 dịch vụ MXH.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#020617",
+  "theme_color": "#020617",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

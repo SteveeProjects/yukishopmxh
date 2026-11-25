@@ -1,0 +1,62 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+.yarn/
+dist/
+build/
+.next/
+out/
+
+# Environment Variables & Secrets (CRITICAL SECURITY)
+.env
+.env.local
+.env.*
+!.env.example
+.env.development.local
+.env.test.local
+.env.production.local
+*.pem
+*.key
+*.cert
+*.db
+*.sqlite
+*.sqlite3
+service-account*.json
+supabase-service-key.txt
+
+# Termux & OS files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.termux-cache/
+nohup.out
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Checkpoints & Backups
+checkpoints/
+backups/
+*.zip
+*.tar.gz
+*.bak
+
+# Testing & Coverage
+coverage/
+.nyc_output/
+cypress/videos/
+cypress/screenshots/
+# Agent tooling & build caches
+.agents/
+.vercel/
+tsconfig.tsbuildinfo
+
+# Local dev data
+data/

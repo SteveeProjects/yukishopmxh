@@ -4,6 +4,7 @@ import { findDbOrderByCode, findDbUserByIdOrIdentifier } from '@/lib/db-persiste
 import { getSessionUser } from '@/lib/session-auth';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 function normalizeContact(value?: string | null): string {
   return sanitizePlainText(value, 160)
@@ -82,6 +83,8 @@ export async function POST(req: NextRequest) {
           : order.delivery_info
           ? 'Đã bàn giao — Đăng nhập đúng tài khoản đặt hàng để xem chi tiết.'
           : undefined,
+        admin_note: (order as any).admin_note || undefined,
+        approval_mode: (order as any).approval_mode || undefined,
         notes: order.notes,
         cashback_awarded: order.cashback_awarded || 0,
         created_at: order.created_at,

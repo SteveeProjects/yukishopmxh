@@ -23,16 +23,10 @@ function isDirWritable(dir: string): boolean {
 
 export function getWritableDataDir(): string {
   if (resolvedDataDir) return resolvedDataDir;
-  if (process.env.VERCEL === '1' || process.env.VERCEL_ENV) {
-    resolvedDataDir = path.join(os.tmpdir(), 'yuki-web-v4-data');
-    try {
-      fs.mkdirSync(resolvedDataDir, { recursive: true });
-    } catch {}
-    return resolvedDataDir;
-  }
-  resolvedDataDir = isDirWritable(seedDataDir)
-    ? seedDataDir
-    : path.join(os.tmpdir(), 'yuki-web-v4-data');
+  const preferredDir = (process.env.YUKI_DATA_DIR || '').trim() || path.join(os.tmpdir(), 'yukishopmxh-data');
+  resolvedDataDir = isDirWritable(preferredDir)
+    ? preferredDir
+    : path.join(os.tmpdir(), 'yukishopmxh-data');
   try {
     fs.mkdirSync(resolvedDataDir, { recursive: true });
   } catch {}
@@ -360,6 +354,8 @@ export interface LocalOrder {
   cost_price?: number;
   warranty_days?: number;
   delivery_info?: string;
+  admin_note?: string;
+  approval_mode?: string;
   warranty_claimed?: boolean;
   warranty_claim_reason?: string;
   warranty_status?: 'PENDING' | 'RESOLVED_REPLACED' | 'RESOLVED_REFUNDED' | 'REJECTED';
@@ -383,7 +379,7 @@ export interface LocalOrder {
   refunded?: boolean;
   telegram_notified?: boolean;
   account_credentials?: string;
-  status: 'pending' | 'approved' | 'rejected' | 'completed' | 'cancelled';
+  status: 'pending' | 'processing' | 'approved' | 'rejected' | 'completed' | 'cancelled';
   notes?: string;
   created_at: string;
   updated_at: string;
@@ -436,24 +432,34 @@ function buildInitialAdmin(): LocalUser {
   };
 }
 
+const memoryCache = new Map<string, any>();
+
 function readJsonSafe<T>(file: string, defaultVal: T): T {
   try {
     if (fs.existsSync(file)) {
       const content = fs.readFileSync(file, 'utf8');
-      return JSON.parse(content) as T;
+      const parsed = JSON.parse(content) as T;
+      memoryCache.set(file, parsed);
+      return parsed;
     }
     const seedFile = path.join(seedDataDir, path.basename(file));
     if (seedFile !== file && fs.existsSync(seedFile)) {
       const content = fs.readFileSync(seedFile, 'utf8');
-      return JSON.parse(content) as T;
+      const parsed = JSON.parse(content) as T;
+      memoryCache.set(file, parsed);
+      return parsed;
     }
   } catch (e: any) {
     console.warn(`[STORE] Read fallback for ${path.basename(file)}:`, e.message);
+  }
+  if (memoryCache.has(file)) {
+    return memoryCache.get(file) as T;
   }
   return defaultVal;
 }
 
 function writeJsonSafe(file: string, data: any): boolean {
+  memoryCache.set(file, data);
   try {
     const dir = path.dirname(file);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -548,7 +554,7 @@ export const serverStore = {
     }
 
     const newUser: LocalUser = {
-      id: (userData.id && String(userData.id).trim()) || ('usr_' + Date.now() + '_' + Math.floor(Math.random() * 1000)),
+      id: (userData.id && String(userData.id).trim()) || crypto.randomUUID(),
       username: (userData.username && String(userData.username).trim()) || cleanUser,
       password: userData.password || '',
       fullName: userData.fullName || cleanUser,
@@ -949,8 +955,12 @@ export const serverStore = {
     );
   },
 
-  updateUserPassword(identifierOrId: string, newPassword: string): boolean {
-    if (!identifierOrId || !newPassword) return false;
+  updateUserPassword(
+    identifierOrId: string,
+    newPasswordOrHash: string,
+    options?: { isPreHashed?: boolean; nextSessionVersion?: number }
+  ): boolean {
+    if (!identifierOrId || !newPasswordOrHash) return false;
     const users = this.loadUsers();
     const clean = identifierOrId.trim().toLowerCase();
 
@@ -963,8 +973,13 @@ export const serverStore = {
     );
 
     if (user) {
-      user.password = hashPassword(newPassword);
-      user.sessionVersion = Number(user.sessionVersion || 1) + 1;
+      const alreadyPbkdf2 = newPasswordOrHash.startsWith('pbkdf2_sha512$');
+      user.password =
+        options?.isPreHashed || alreadyPbkdf2 ? newPasswordOrHash : hashPassword(newPasswordOrHash);
+      user.sessionVersion =
+        typeof options?.nextSessionVersion === 'number'
+          ? options.nextSessionVersion
+          : Number(user.sessionVersion || 1) + 1;
       this.saveUsers(users);
       return true;
     }
@@ -1794,16 +1809,16 @@ export const serverStore = {
   // ---------------------------------------------------------------------------
   loadCategories(): LocalCategory[] {
     const defaultCategories: LocalCategory[] = [
-      { id: 'cat_ai_tech', name: 'AI & Công Nghệ', slug: 'ai-cong-nghe', description: 'Google Gemini, công cụ AI và công nghệ', icon: 'Bot', createdAt: new Date().toISOString() },
-      { id: 'cat_ai_models', name: 'Trí Tuệ Nhân Tạo AI', slug: 'tri-tue-nhan-tao-ai', description: 'ChatGPT, Claude, Grok, DeepSeek...', icon: 'Sparkles', createdAt: new Date().toISOString() },
-      { id: 'cat_entertainment', name: 'Giải Trí & Video', slug: 'giai-tri-video', description: 'YouTube, Netflix...', icon: 'Tv', createdAt: new Date().toISOString() },
-      { id: 'cat_design', name: 'Đồ Họa & Biên Tập', slug: 'do-hoa-bien-tap', description: 'Canva Pro, CapCut Pro...', icon: 'Layers', createdAt: new Date().toISOString() },
-      { id: 'cat_finance', name: 'Tài Chính & Ngân Hàng', slug: 'tai-chinh-ngan-hang', description: 'MB Bank Số Đẹp', icon: 'Wallet', createdAt: new Date().toISOString() },
-      { id: 'cat_music', name: 'Âm Nhạc & Giải Trí', slug: 'am-nhac-giai-tri', description: 'Spotify Premium', icon: 'Music', createdAt: new Date().toISOString() },
-      { id: 'cat_learning', name: 'Học Tập & Ngôn Ngữ', slug: 'hoc-tap-ngon-ngu', description: 'Super Duolingo', icon: 'GraduationCap', createdAt: new Date().toISOString() },
-      { id: 'cat_vpn', name: 'Bảo Mật & Tiện Ích', slug: 'bao-mat-tien-ich', description: 'VPN & Bảo mật', icon: 'ShieldCheck', createdAt: new Date().toISOString() },
-      { id: 'cat_social', name: 'Mạng Xã Hội & Đời Sống', slug: 'mang-xa-hoi-doi-song', description: 'Locket Gold (iOS)', icon: 'Share2', createdAt: new Date().toISOString() },
-      { id: 'cat_api', name: 'API & Công Cụ Tool', slug: 'api-cong-cu-tool', description: 'API Tool SMS Gateway', icon: 'Terminal', createdAt: new Date().toISOString() },
+      { id: '00000000-0000-4000-8000-000000000101', name: 'Google Gemini', slug: 'google-gemini', description: 'Gói Google AI Ultra 5x / 20x Slot Family chính chủ', icon: 'Sparkles', createdAt: new Date().toISOString() },
+      { id: '00000000-0000-4000-8000-000000000102', name: 'Muse AI', slug: 'muse-ai', description: 'Muse AI Tokens & Gói VIP tạo Video', icon: 'Video', createdAt: new Date().toISOString() },
+      { id: '00000000-0000-4000-8000-000000000103', name: 'Dịch Vụ SMS & OTP', slug: 'dich-vu-sms-otp', description: 'API Tool SMS & Cổng OTP', icon: 'Terminal', createdAt: new Date().toISOString() },
+      { id: '00000000-0000-4000-8000-000000000104', name: 'Trí Tuệ Nhân Tạo AI', slug: 'tri-tue-nhan-tao-ai', description: 'ChatGPT, Claude, Grok, DeepSeek...', icon: 'Bot', createdAt: new Date().toISOString() },
+      { id: '00000000-0000-4000-8000-000000000105', name: 'Giải Trí & Video', slug: 'giai-tri-video', description: 'YouTube, Netflix...', icon: 'Tv', createdAt: new Date().toISOString() },
+      { id: '00000000-0000-4000-8000-000000000106', name: 'Đồ Họa & Biên Tập', slug: 'do-hoa-bien-tap', description: 'Canva Pro, CapCut Pro...', icon: 'Layers', createdAt: new Date().toISOString() },
+      { id: '00000000-0000-4000-8000-000000000107', name: 'Tài Chính & Ngân Hàng', slug: 'tai-chinh-ngan-hang', description: 'MB Bank Số Đẹp', icon: 'Wallet', createdAt: new Date().toISOString() },
+      { id: '00000000-0000-4000-8000-000000000108', name: 'Âm Nhạc & Giải Trí', slug: 'am-nhac-giai-tri', description: 'Spotify Premium', icon: 'Music', createdAt: new Date().toISOString() },
+      { id: '00000000-0000-4000-8000-000000000109', name: 'Học Tập & Ngôn Ngữ', slug: 'hoc-tap-ngon-ngu', description: 'Super Duolingo', icon: 'GraduationCap', createdAt: new Date().toISOString() },
+      { id: '00000000-0000-4000-8000-000000000110', name: 'VPN & Bảo Mật', slug: 'vpn-bao-mat', description: 'VPN & Bảo mật', icon: 'ShieldCheck', createdAt: new Date().toISOString() },
     ];
 
     const categories = readJsonSafe<LocalCategory[]>(categoriesPath, []);
@@ -1836,7 +1851,7 @@ export const serverStore = {
     if (existing) throw new Error(`Danh mục "${name}" đã tồn tại.`);
 
     const newCat: LocalCategory = {
-      id: 'cat_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+      id: crypto.randomUUID(),
       name,
       slug,
       description: categoryData.description || '',
@@ -2454,7 +2469,7 @@ export const serverStore = {
     const netAmount = item.netAmount !== undefined ? Number(item.netAmount) : Math.max(0, amount - fee);
 
     const record: LocalAffiliateWithdrawal = {
-      id: 'aw_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+      id: crypto.randomUUID(),
       userId: item.userId,
       username: item.username,
       amount,

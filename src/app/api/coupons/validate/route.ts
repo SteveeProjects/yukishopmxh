@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import { ensureDatabaseReady, queryPostgres } from '@/lib/autoMigrate';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function POST(req: NextRequest) {
   try {

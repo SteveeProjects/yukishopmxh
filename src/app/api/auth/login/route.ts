@@ -3,7 +3,7 @@ import { serverStore, type LocalUser } from '@/lib/server-store';
 import { getSupabaseAdmin } from '@/lib/supabase/admin';
 import { createSessionPayload, getSessionCookieOptions } from '@/lib/session-token';
 import { ensureDatabaseReady, queryPostgres, isDatabaseConfigured } from '@/lib/autoMigrate';
-import { verifyPassword, hashPassword } from '@/lib/password-hash';
+import { verifyPassword, hashPassword, needsPasswordRehash } from '@/lib/password-hash';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -63,6 +63,16 @@ export async function POST(req: Request) {
           );
         }
 
+        let effectiveHash = String(profile.password_hash);
+        if (needsPasswordRehash(effectiveHash)) {
+          const upgradedHash = hashPassword(password);
+          effectiveHash = upgradedHash;
+          await queryPostgres(
+            `UPDATE public.profiles SET password_hash = $1, updated_at = NOW() WHERE id::text = $2`,
+            [upgradedHash, String(profile.id)]
+          ).catch(() => {});
+        }
+
         const userRole: 'admin' | 'user' = String(profile.role || '').toLowerCase() === 'admin' ? 'admin' : 'user';
         const sessionUser: LocalUser = {
           id: profile.id,
@@ -79,7 +89,7 @@ export async function POST(req: Request) {
           createdAt: profile.created_at || new Date().toISOString(),
         };
 
-        syncUserHashToLocalCache(sessionUser, String(profile.password_hash));
+        syncUserHashToLocalCache(sessionUser, effectiveHash);
 
         const cookiePayload = createSessionPayload(sessionUser);
         const res = NextResponse.json({
@@ -149,10 +159,28 @@ export async function POST(req: Request) {
           targetEmail = byUsername.data?.email || byPhone?.data?.email || byTele?.data?.email || targetEmail;
         }
 
-        const { data: authData, error: authError } = await supabaseAdmin.auth.signInWithPassword({
+        let { data: authData, error: authError } = await supabaseAdmin.auth.signInWithPassword({
           email: targetEmail,
           password,
         });
+
+        if (authError && /email not confirmed/i.test(authError.message || '')) {
+          try {
+            const { data: listed } = await supabaseAdmin.auth.admin.listUsers();
+            const unconfirmed = listed?.users?.find(
+              (u) => String(u.email || '').toLowerCase() === targetEmail.toLowerCase()
+            );
+            if (unconfirmed?.id) {
+              await supabaseAdmin.auth.admin.updateUserById(unconfirmed.id, { email_confirm: true });
+              const retried = await supabaseAdmin.auth.signInWithPassword({
+                email: targetEmail,
+                password,
+              });
+              authData = retried.data;
+              authError = retried.error;
+            }
+          } catch {}
+        }
 
         if (!authError && authData?.user) {
           const u = authData.user;
@@ -198,8 +226,8 @@ export async function POST(req: Request) {
       console.warn('[login] Supabase auth fallback error:', sbErr);
     }
 
-    // 4. Final fallback to synced localUser when DB was reachable but profile wasn't migrated yet
-    if (localUser) {
+    // 4. Final fallback to synced localUser ONLY when database is not configured
+    if (localUser && !isDatabaseConfigured()) {
       const isMatch = Boolean(localUser.password && verifyPassword(password, localUser.password));
       if (!isMatch) {
         return NextResponse.json(

@@ -132,6 +132,8 @@ export function CustomDialogProvider({ children }: { children: ReactNode }) {
                 </div>
               </div>
               <button
+                type="button"
+                aria-label="Đóng hộp thoại"
                 onClick={() => handleClose(false)}
                 className="p-1 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
               >

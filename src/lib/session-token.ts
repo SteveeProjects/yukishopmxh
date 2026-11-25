@@ -6,14 +6,15 @@ export function getSessionSecret(): string {
     process.env.SESSION_SECRET ||
     process.env.NEXTAUTH_SECRET ||
     process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_SECRET_KEY ||
+    process.env.POSTGRES_URL_NON_POOLING ||
     process.env.POSTGRES_URL ||
     process.env.DATABASE_URL ||
-    process.env.TELEGRAM_BOT_TOKEN ||
     ''
   ).trim();
 
   if (configured) return configured;
-  if (process.env.VERCEL === '1' && process.env.NODE_ENV === 'production') {
+  if (process.env.NODE_ENV === 'production') {
     return '';
   }
   return 'yuki-shop-mxh-local-dev-secret-v4';

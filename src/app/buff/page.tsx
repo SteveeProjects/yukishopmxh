@@ -155,6 +155,7 @@ function BuffSocialContent() {
     setResolvingUser(true);
     const timer = setTimeout(() => {
       fetch('/api/telegram/resolve-user', {
+        cache: 'no-store',
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ telegramId: cleanId }),
@@ -338,6 +339,8 @@ function BuffSocialContent() {
       for (const linkUrl of linksToSubmit) {
         const res = await fetch('/api/orders/create', {
           method: 'POST',
+          cache: 'no-store',
+          credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             sku: `BUFF-${selectedPlatform}-${activeService?.code || 'SVC'}-SV${selectedServer.id}`,

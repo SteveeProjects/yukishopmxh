@@ -24,12 +24,14 @@ export function AdminOrdersTab({
   const [searchTerm, setSearchTerm] = useState('');
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [deliveryDrafts, setDeliveryDrafts] = useState<Record<string, string>>({});
+  const [adminNoteDrafts, setAdminNoteDrafts] = useState<Record<string, string>>({});
+  const [actingCode, setActingCode] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
 
   const loadOrders = async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const res = await fetch('/api/admin/orders', { cache: 'no-store' });
+      const res = await fetch('/api/admin/orders', { cache: 'no-store', credentials: 'include' });
       if (res.ok) {
         const data = await res.json();
         const list = Array.isArray(data.orders) ? data.orders : [];
@@ -54,14 +56,32 @@ export function AdminOrdersTab({
   const formatVND = (num: number) =>
     new Intl.NumberFormat('vi-VN').format(num) + 'đ';
 
-  // Optimistic Order Action
-  const handleAction = async (order: any, action: 'approve' | 'reject') => {
+  // Multi-mode Order Action
+  const handleAction = async (
+    order: any,
+    action: 'approve' | 'approve_deliver' | 'approve_upgraded' | 'processing' | 'reject'
+  ) => {
     const code = order.order_code || order.id;
     const deliveryInfo = (deliveryDrafts[code] || '').trim();
-    const prevOrders = [...orders];
-    const optimisticStatus = action === 'approve' ? 'completed' : 'cancelled';
+    const adminNote = (adminNoteDrafts[code] || '').trim();
 
-    // Optimistic UI update immediately
+    if (action === 'approve_deliver' && !deliveryInfo) {
+      setNotice({
+        type: 'err',
+        text: `Đơn #${code}: Vui lòng nhập TK / MK / 2FA / Key bàn giao vào ô trước khi bấm Duyệt & Gửi TK/Key.`,
+      });
+      return;
+    }
+
+    const prevOrders = [...orders];
+    const optimisticStatus =
+      action === 'reject'
+        ? 'cancelled'
+        : action === 'processing'
+        ? 'processing'
+        : 'completed';
+
+    setActingCode(code);
     setOrders((curr) =>
       curr.map((o) =>
         (o.order_code || o.id) === code
@@ -69,6 +89,7 @@ export function AdminOrdersTab({
               ...o,
               status: optimisticStatus,
               delivery_info: deliveryInfo || o.delivery_info,
+              admin_note: adminNote || o.admin_note,
             }
           : o
       )
@@ -78,12 +99,20 @@ export function AdminOrdersTab({
     try {
       const res = await fetch('/api/admin/orders/action', {
         method: 'POST',
+        cache: 'no-store',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           orderId: code,
           action,
           deliveryInfo: deliveryInfo || undefined,
-          type: order.service_type === 'DEPOSIT' ? 'topup' : 'order',
+          adminNote: adminNote || undefined,
+          type:
+            order.service_type === 'DEPOSIT' ||
+            order.service_type === 'NAP_VI' ||
+            order.order_type === 'DEPOSIT'
+              ? 'topup'
+              : 'order',
         }),
       });
       const data = await res.json();
@@ -93,15 +122,16 @@ export function AdminOrdersTab({
       setNotice({ type: 'ok', text: data.message || `Đã xử lý đơn #${code}` });
       loadOrders(true);
     } catch (err: any) {
-      // Rollback on failure
       setOrders(prevOrders);
       setNotice({ type: 'err', text: err.message || 'Lỗi xử lý đơn hàng.' });
+    } finally {
+      setActingCode(null);
     }
   };
 
   const filtered = orders.filter((o) => {
     const st = String(o.status || 'pending').toLowerCase();
-    if (statusFilter === 'PENDING' && !['pending', 'waiting_confirm'].includes(st)) return false;
+    if (statusFilter === 'PENDING' && !['pending', 'waiting_confirm', 'processing'].includes(st)) return false;
     if (statusFilter === 'COMPLETED' && !['completed', 'approved'].includes(st)) return false;
     if (statusFilter === 'CANCELLED' && !['cancelled', 'rejected'].includes(st)) return false;
 
@@ -127,7 +157,7 @@ export function AdminOrdersTab({
             { id: 'ALL', label: `Tất cả (${orders.length})` },
             {
               id: 'PENDING',
-              label: `Chờ duyệt (${orders.filter((o) => ['pending', 'waiting_confirm'].includes(String(o.status || '').toLowerCase())).length})`,
+              label: `Chờ duyệt (${orders.filter((o) => ['pending', 'waiting_confirm', 'processing'].includes(String(o.status || '').toLowerCase())).length})`,
             },
             { id: 'COMPLETED', label: 'Đã hoàn tất' },
             { id: 'CANCELLED', label: 'Đã hủy' },
@@ -190,8 +220,15 @@ export function AdminOrdersTab({
           filtered.map((o) => {
             const code = o.order_code || o.id;
             const st = String(o.status || 'pending').toLowerCase();
-            const isPending = st === 'pending' || st === 'waiting_confirm';
+            const isProcessing = st === 'processing';
+            const isPending = st === 'pending' || st === 'waiting_confirm' || isProcessing;
             const isDone = st === 'completed' || st === 'approved';
+            const isDepositOrder =
+              o.service_type === 'DEPOSIT' ||
+              o.service_type === 'NAP_VI' ||
+              o.order_type === 'DEPOSIT' ||
+              /^YUKISP_/i.test(String(code));
+            const deliveredText = o.delivery_info || o.delivered_data || '';
 
             return (
               <div
@@ -208,6 +245,8 @@ export function AdminOrdersTab({
                         className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${
                           isDone
                             ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300'
+                            : isProcessing
+                            ? 'bg-sky-500/15 border-sky-500/35 text-sky-300'
                             : isPending
                             ? 'bg-amber-500/15 border-amber-500/30 text-amber-300'
                             : 'bg-red-500/15 border-red-500/30 text-red-300'
@@ -221,7 +260,13 @@ export function AdminOrdersTab({
                           <XCircle className="w-3 h-3" />
                         )}
                         <span>
-                          {isDone ? 'Hoàn tất' : isPending ? 'Chờ duyệt' : 'Đã hủy'}
+                          {isDone
+                            ? 'Hoàn tất'
+                            : isProcessing
+                            ? 'Đang xử lý / Chờ 2FA'
+                            : isPending
+                            ? 'Chờ duyệt'
+                            : 'Đã hủy'}
                         </span>
                       </span>
                     </div>
@@ -261,9 +306,14 @@ export function AdminOrdersTab({
                         Ghi chú: <span className="text-slate-200">{o.notes}</span>
                       </div>
                     )}
-                    {o.delivery_info && (
+                    {deliveredText && (
                       <div className="text-[11px] text-emerald-300 font-mono">
-                        Đã bàn giao: {o.delivery_info}
+                        Đã bàn giao: {deliveredText}
+                      </div>
+                    )}
+                    {o.admin_note && (
+                      <div className="text-[11px] text-amber-300">
+                        Phản hồi Admin: {o.admin_note}
                       </div>
                     )}
                   </div>
@@ -283,32 +333,77 @@ export function AdminOrdersTab({
                 </div>
 
                 {isPending && (
-                  <div className="pt-2.5 border-t border-sky-200/[0.08] flex flex-col sm:flex-row gap-2">
-                    <input
-                      type="text"
-                      value={deliveryDrafts[code] ?? ''}
-                      onChange={(e) =>
-                        setDeliveryDrafts((prev) => ({ ...prev, [code]: e.target.value }))
-                      }
-                      placeholder="Nhập email|pass hoặc key bàn giao cho khách (tuỳ chọn)..."
-                      className="flex-1 h-9 px-3 rounded-xl bg-[#060B16] border border-sky-200/[0.12] text-xs text-white placeholder-slate-500 font-mono focus:outline-none focus:border-[#0EA5E9]"
-                    />
-                    <div className="flex items-center gap-2 shrink-0">
+                  <div className="pt-2.5 border-t border-sky-200/[0.08] space-y-2">
+                    {!isDepositOrder && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <input
+                          type="text"
+                          value={deliveryDrafts[code] ?? ''}
+                          onChange={(e) =>
+                            setDeliveryDrafts((prev) => ({ ...prev, [code]: e.target.value }))
+                          }
+                          placeholder="Nhập TK | MK | 2FA / Key bàn giao cho khách..."
+                          className="h-9 px-3 rounded-xl bg-[#060B16] border border-sky-200/[0.12] text-xs text-white placeholder-slate-500 font-mono focus:outline-none focus:border-[#0EA5E9]"
+                        />
+                        <input
+                          type="text"
+                          value={adminNoteDrafts[code] ?? ''}
+                          onChange={(e) =>
+                            setAdminNoteDrafts((prev) => ({ ...prev, [code]: e.target.value }))
+                          }
+                          placeholder="Ghi chú gửi khách / Yêu cầu mã 2FA (tuỳ chọn)..."
+                          className="h-9 px-3 rounded-xl bg-[#060B16] border border-sky-200/[0.12] text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#0EA5E9]"
+                        />
+                      </div>
+                    )}
+                    <div className="flex flex-wrap items-center gap-2">
+                      {isDepositOrder ? (
+                        <button
+                          type="button"
+                          disabled={actingCode === code}
+                          onClick={() => handleAction(o, 'approve')}
+                          className="h-9 px-3.5 rounded-xl btn-ios-blue text-xs flex items-center gap-1.5 disabled:opacity-50"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                          <span>{actingCode === code ? 'Đang xử lý...' : 'Duyệt Nạp Ví'}</span>
+                        </button>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            disabled={actingCode === code}
+                            onClick={() => handleAction(o, 'approve_deliver')}
+                            className="h-9 px-3.5 rounded-xl btn-ios-blue text-xs flex items-center gap-1.5 disabled:opacity-50"
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                            <span>{actingCode === code ? 'Đang lưu...' : '🔑 Duyệt & Gửi TK/Key'}</span>
+                          </button>
+                          <button
+                            type="button"
+                            disabled={actingCode === code}
+                            onClick={() => handleAction(o, 'approve_upgraded')}
+                            className="h-9 px-3 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/35 text-emerald-200 text-xs font-semibold flex items-center gap-1.5 disabled:opacity-50"
+                          >
+                            <span>✨ Đã Nâng / Add Family</span>
+                          </button>
+                          <button
+                            type="button"
+                            disabled={actingCode === code}
+                            onClick={() => handleAction(o, 'processing')}
+                            className="h-9 px-3 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/35 text-amber-200 text-xs font-semibold flex items-center gap-1.5 disabled:opacity-50"
+                          >
+                            <span>⏳ Xin 2FA / Đang xử lý</span>
+                          </button>
+                        </>
+                      )}
                       <button
                         type="button"
-                        onClick={() => handleAction(o, 'approve')}
-                        className="h-9 px-3.5 rounded-xl btn-ios-blue text-xs flex items-center gap-1.5"
-                      >
-                        <Check className="w-3.5 h-3.5" />
-                        <span>Duyệt &amp; Trả Hàng</span>
-                      </button>
-                      <button
-                        type="button"
+                        disabled={actingCode === code}
                         onClick={() => handleAction(o, 'reject')}
-                        className="h-9 px-3 rounded-xl bg-red-500/12 hover:bg-red-500/20 border border-red-500/30 text-red-300 text-xs font-semibold flex items-center gap-1"
+                        className="h-9 px-3 rounded-xl bg-red-500/12 hover:bg-red-500/20 border border-red-500/30 text-red-300 text-xs font-semibold flex items-center gap-1 disabled:opacity-50"
                       >
                         <X className="w-3.5 h-3.5" />
-                        <span>Từ chối</span>
+                        <span>{isDepositOrder ? 'Từ chối' : 'Từ chối & Hoàn Ví'}</span>
                       </button>
                     </div>
                   </div>

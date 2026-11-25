@@ -9,10 +9,16 @@ export interface LiveCatalogProduct {
   sell_price: number;
   original_price?: number;
   stock?: number;
+  sort_order?: number;
   status?: string;
   description?: string;
   icon?: string;
   warranty_days?: number;
+  allow_voucher?: boolean;
+  input_type?: string;
+  delivery_mode?: string;
+  custom_input_label?: string;
+  fulfillment_mode?: string;
 }
 
 export interface LiveCatalogCategory {
@@ -79,14 +85,24 @@ export function mergeLiveCatalog(
         price: Number(live.sell_price ?? pkg.price),
         originalPrice: Number(live.original_price ?? pkg.originalPrice ?? 0),
         stock: Number(live.stock ?? pkg.stock ?? 50),
+        sort_order: Number(live.sort_order ?? pkg.sort_order ?? 100),
+        category: live.category || pkg.category || b.category,
+        display_section: live.display_section || pkg.display_section || live.category || b.category,
         warranty: warrantyText,
         warranty_days: wDays,
         warrantyDays: wDays,
+        allow_voucher: live.allow_voucher ?? pkg.allow_voucher,
+        allowVoucher: live.allow_voucher ?? pkg.allowVoucher,
+        input_type: live.delivery_mode || live.input_type || pkg.delivery_mode || pkg.input_type,
+        delivery_mode: live.delivery_mode || live.input_type || pkg.delivery_mode || pkg.input_type,
+        custom_input_label: live.custom_input_label ?? pkg.custom_input_label,
+        fulfillment_mode: live.fulfillment_mode || pkg.fulfillment_mode || pkg.fulfillmentMode,
         description: live.description || pkg.description,
       });
     }
 
     if (nextPackages.length > 0) {
+      nextPackages.sort((a, x) => Number(a.sort_order ?? 100) - Number(x.sort_order ?? 100));
       const firstLive = productMap.get(nextPackages[0].sku);
       mergedBaseBrands.push({
         ...b,
@@ -129,7 +145,16 @@ export function mergeLiveCatalog(
           duration: 'Theo gói',
           durationDays: wDays > 0 ? wDays : null,
           status: 'ACTIVE',
-          fulfillmentMode: 'MANUAL',
+          fulfillmentMode: cp.fulfillment_mode === 'AUTO' ? 'AUTO' : 'MANUAL',
+          fulfillment_mode: cp.fulfillment_mode || 'MANUAL',
+          allow_voucher: cp.allow_voucher ?? true,
+          allowVoucher: cp.allow_voucher ?? true,
+          input_type: cp.delivery_mode || cp.input_type || 'admin_deliver',
+          delivery_mode: cp.delivery_mode || cp.input_type || 'admin_deliver',
+          custom_input_label: cp.custom_input_label || '',
+          sort_order: Number(cp.sort_order ?? 100),
+          category: cp.category || cp.display_section || 'Dịch vụ thêm',
+          display_section: cp.display_section || cp.category || 'Dịch vụ thêm',
           warranty: warrantyLabel,
           warranty_days: wDays,
           warrantyDays: wDays,

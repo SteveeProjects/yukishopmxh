@@ -35,7 +35,7 @@ export function ServiceStatusBar({
     }
 
     let cancelled = false;
-    fetch('/api/settings/announcement')
+    fetch('/api/settings/announcement', { cache: 'no-store', credentials: 'include' })
       .then((res) => res.json())
       .then((data) => {
         if (cancelled) return;

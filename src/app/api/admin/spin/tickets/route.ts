@@ -3,6 +3,7 @@ import { verifyAdminRequest } from '@/lib/admin-auth';
 import { serverStore } from '@/lib/server-store';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function POST(req: NextRequest) {
   try {

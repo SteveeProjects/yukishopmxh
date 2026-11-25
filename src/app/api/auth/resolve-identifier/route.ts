@@ -11,9 +11,9 @@ export async function POST(req: Request) {
     const { identifier } = await req.json().catch(() => ({}));
     const clean = String(identifier || '').trim();
 
-    if (!clean) {
+    if (!clean || clean.length > 120 || !/^[a-zA-Z0-9_@.+ -]+$/.test(clean)) {
       return NextResponse.json(
-        { error: 'Vui lòng nhập Email, Tên đăng nhập, SĐT hoặc ID Telegram.' },
+        { error: 'Định dạng Email, Tên đăng nhập, SĐT hoặc ID Telegram không hợp lệ.' },
         { status: 400 }
       );
     }
@@ -54,19 +54,19 @@ export async function POST(req: Request) {
       console.warn('[resolve-identifier] Postgres query notice:', pgErr);
     }
 
-    // 4. Search via Supabase Admin Client
+    // 4. Search via Supabase Admin Client using safe single-column equality/ilike filters (no .or string interpolation)
     const supabaseAdmin = getSupabaseAdmin();
     if (supabaseAdmin) {
       try {
-        const { data: profile } = await supabaseAdmin
-          .from('profiles')
-          .select('email')
-          .or(`username.ilike.${clean},telegram_id.ilike.${normalizedTele},telegram_id.ilike.${clean},phone.eq.${clean},email.ilike.${clean}`)
-          .limit(1)
-          .maybeSingle();
-
-        if (profile?.email) {
-          return NextResponse.json({ email: String(profile.email).toLowerCase() });
+        const candidates = await Promise.all([
+          supabaseAdmin.from('profiles').select('email').ilike('username', clean).limit(1).maybeSingle(),
+          supabaseAdmin.from('profiles').select('email').ilike('telegram_id', normalizedTele).limit(1).maybeSingle(),
+          supabaseAdmin.from('profiles').select('email').eq('phone', clean).limit(1).maybeSingle(),
+          supabaseAdmin.from('profiles').select('email').ilike('email', clean).limit(1).maybeSingle(),
+        ]);
+        const matched = candidates.find((c) => c.data?.email)?.data;
+        if (matched?.email) {
+          return NextResponse.json({ email: String(matched.email).toLowerCase() });
         }
       } catch (sbErr) {
         console.warn('[resolve-identifier] Supabase query notice:', sbErr);

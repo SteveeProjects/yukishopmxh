@@ -29,7 +29,7 @@ export async function GET(req: Request) {
 
     try {
       const pgDep = await queryPostgres(
-        `SELECT status FROM public.deposit_requests WHERE request_code = $1 OR transfer_code = $1 OR id = $1 LIMIT 1`,
+        `SELECT status FROM public.deposit_requests WHERE request_code = $1 OR transfer_code = $1 OR id::text = $1 LIMIT 1`,
         [code]
       );
       if (pgDep?.rows?.[0]?.status) {
@@ -37,7 +37,7 @@ export async function GET(req: Request) {
         if (status === 'approved' || status === 'completed') paid = true;
       } else {
         const pgOrd = await queryPostgres(
-          `SELECT status, paid FROM public.orders WHERE order_code = $1 OR id = $1 LIMIT 1`,
+          `SELECT status, paid FROM public.orders WHERE order_code = $1 OR id::text = $1 LIMIT 1`,
           [code]
         );
         if (pgOrd?.rows?.[0]?.status) {

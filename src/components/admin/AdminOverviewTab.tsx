@@ -40,7 +40,7 @@ export function AdminOverviewTab({
   const fetchStats = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/admin/stats');
+      const res = await fetch('/api/admin/stats', { cache: 'no-store', credentials: 'include' });
       if (res.ok) {
         const json = await res.json();
         setData(json);

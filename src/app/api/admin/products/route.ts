@@ -3,6 +3,7 @@ import { verifyAdminRequest } from '@/lib/admin-auth';
 import { GET as catalogGet, POST as catalogPost, PUT as catalogPut, DELETE as catalogDelete } from '@/app/api/admin/catalog/route';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function GET(_req: NextRequest) {
   if (!(await verifyAdminRequest())) {

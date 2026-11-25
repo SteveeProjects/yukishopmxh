@@ -1,43 +1,71 @@
 import crypto from 'crypto';
 
-const SALT = process.env.PASSWORD_SALT || process.env.SESSION_SECRET || 'yuki_salt_2026_mxh';
+const PBKDF2_PREFIX = 'pbkdf2_sha512$';
+const PBKDF2_ITERATIONS = 10000;
+const PBKDF2_KEYLEN = 64;
+const LEGACY_SALT =
+  process.env.PASSWORD_SALT || process.env.SESSION_SECRET || 'yuki_salt_2026_mxh';
 
-/**
- * Generates secure PBKDF2 hash for a password.
- */
-export function hashPassword(password: string): string {
-  if (!password) return '';
-  return crypto.pbkdf2Sync(password, SALT, 10000, 32, 'sha512').toString('hex');
+function timingSafeCompare(a: Buffer, b: Buffer): boolean {
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
 }
 
 /**
- * Safely verifies a password against stored hash or plaintext with timing-safe comparison.
+ * Hashes a plaintext password using PBKDF2-SHA512 with a per-password 16-byte random salt.
+ * Self-contained format: `pbkdf2_sha512$<saltHex>$<hashHex>` (independent of SESSION_SECRET).
  */
-export function verifyPassword(password: string, storedHashOrPlain?: string | null): boolean {
-  if (!storedHashOrPlain || !password) return false;
+export function hashPassword(password: string): string {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto
+    .pbkdf2Sync(password, salt, PBKDF2_ITERATIONS, PBKDF2_KEYLEN, 'sha512')
+    .toString('hex');
+  return `${PBKDF2_PREFIX}${salt}$${hash}`;
+}
 
-  // 1. Direct plaintext match (for legacy local store compatibility)
-  if (storedHashOrPlain === password) return true;
+export function needsPasswordRehash(storedHash?: string | null): boolean {
+  return !storedHash || !storedHash.startsWith(PBKDF2_PREFIX);
+}
 
-  // 2. PBKDF2 SHA-512 match
-  const computedPbkdf2 = hashPassword(password);
-  if (computedPbkdf2.length === storedHashOrPlain.length) {
-    try {
-      if (crypto.timingSafeEqual(Buffer.from(computedPbkdf2, 'utf8'), Buffer.from(storedHashOrPlain, 'utf8'))) {
-        return true;
-      }
-    } catch {}
+export function verifyPassword(password: string, storedHash: string): boolean {
+  if (!password || !storedHash) return false;
+
+  if (storedHash.startsWith(PBKDF2_PREFIX)) {
+    const parts = storedHash.split('$');
+    if (parts.length !== 3) return false;
+    const [, salt, expectedHex] = parts;
+    if (!salt || !expectedHex || !/^[a-f0-9]+$/i.test(expectedHex)) return false;
+
+    const expectedBuf = Buffer.from(expectedHex, 'hex');
+    if (expectedBuf.length === 0) return false;
+    const derived = crypto.pbkdf2Sync(
+      password,
+      salt,
+      PBKDF2_ITERATIONS,
+      expectedBuf.length,
+      'sha512'
+    );
+    return timingSafeCompare(derived, expectedBuf);
   }
 
-  // 3. Simple SHA-256 match
-  const sha256 = crypto.createHash('sha256').update(password).digest('hex');
-  if (sha256.length === storedHashOrPlain.length) {
-    try {
-      if (crypto.timingSafeEqual(Buffer.from(sha256, 'utf8'), Buffer.from(storedHashOrPlain, 'utf8'))) {
-        return true;
-      }
-    } catch {}
+  // Legacy 64-char hex digests (raw SHA-256 or legacy static-salt PBKDF2-SHA512-32B)
+  if (/^[a-f0-9]{64}$/i.test(storedHash)) {
+    const expectedBuf = Buffer.from(storedHash, 'hex');
+    const sha256Buf = crypto.createHash('sha256').update(password).digest();
+    if (timingSafeCompare(sha256Buf, expectedBuf)) {
+      return true;
+    }
+
+    const legacyPbkdf2Buf = crypto.pbkdf2Sync(
+      password,
+      LEGACY_SALT,
+      PBKDF2_ITERATIONS,
+      32,
+      'sha512'
+    );
+    return timingSafeCompare(legacyPbkdf2Buf, expectedBuf);
   }
 
-  return false;
+  // Fallback for legacy unhashed records
+  return timingSafeCompare(Buffer.from(password, 'utf8'), Buffer.from(storedHash, 'utf8'));
 }

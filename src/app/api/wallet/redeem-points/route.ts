@@ -8,6 +8,7 @@ import { queryPostgres } from '@/lib/autoMigrate';
 import { getSiteSettings } from '@/lib/system-settings';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function POST(req: NextRequest) {
   try {
@@ -56,7 +57,7 @@ export async function POST(req: NextRequest) {
         const pgDeduct = await queryPostgres(
           `UPDATE public.profiles
            SET cashback_points = COALESCE(cashback_points, 0) - $1, updated_at = NOW()
-           WHERE id = $2 AND COALESCE(cashback_points, 0) >= $1
+           WHERE id::text = $2 AND COALESCE(cashback_points, 0) >= $1
            RETURNING cashback_points`,
           [redeemAmount, dbUser.id]
         );
@@ -95,7 +96,7 @@ export async function POST(req: NextRequest) {
         // Rollback points on error
         serverStore.adjustCashbackPoints(dbUser.id, redeemAmount, 0);
         await queryPostgres(
-          `UPDATE public.profiles SET cashback_points = COALESCE(cashback_points, 0) + $1, updated_at = NOW() WHERE id = $2`,
+          `UPDATE public.profiles SET cashback_points = COALESCE(cashback_points, 0) + $1, updated_at = NOW() WHERE id::text = $2`,
           [redeemAmount, dbUser.id]
         ).catch(() => {});
         throw balErr;

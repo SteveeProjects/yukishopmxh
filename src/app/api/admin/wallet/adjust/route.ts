@@ -8,6 +8,7 @@ import { queryPostgres } from '@/lib/autoMigrate';
 import { getSupabaseAdmin } from '@/lib/supabase/admin';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 interface BalanceAdjustLog {
   id: string;

@@ -27,6 +27,7 @@ export function CreateCategoryModal({ isOpen, onClose, onCreated }: CreateCatego
 
     try {
       const res = await fetch('/api/admin/categories', {
+        cache: 'no-store',
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

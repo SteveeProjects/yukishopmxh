@@ -2,12 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSessionUser } from '@/lib/session-auth';
 import { serverStore } from '@/lib/server-store';
 import { getSupabaseAdmin } from '@/lib/supabase/admin';
-import { hashPassword } from '@/lib/password-hash';
-import { queryPostgres } from '@/lib/autoMigrate';
-import { updateDbUserFields } from '@/lib/db-persistence';
+import { hashPassword, verifyPassword } from '@/lib/password-hash';
+import { isDatabaseConfigured, queryPostgres } from '@/lib/autoMigrate';
+import { findDbUserByIdOrIdentifier, updateDbUserFields } from '@/lib/db-persistence';
 import { createSessionPayload, getSessionCookieOptions } from '@/lib/session-token';
+import { isUuid } from '@/lib/supabase/env';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function POST(req: NextRequest) {
   try {
@@ -20,6 +22,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json().catch(() => ({}));
+    const oldPassword = String(body.oldPassword || body.currentPassword || '').trim();
     const newPassword = String(body.newPassword || body.password || '').trim();
 
     if (!newPassword || newPassword.length < 6) {
@@ -29,39 +32,79 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const existing = await findDbUserByIdOrIdentifier(sessionUser.id);
+    const storedPasswordHash = existing?.password || '';
+    if (storedPasswordHash) {
+      if (!oldPassword) {
+        return NextResponse.json(
+          { error: 'Vui lòng nhập mật khẩu hiện tại để xác nhận đổi mật khẩu.' },
+          { status: 400 }
+        );
+      }
+      if (!verifyPassword(oldPassword, storedPasswordHash)) {
+        return NextResponse.json(
+          { error: 'Mật khẩu hiện tại không chính xác.' },
+          { status: 401 }
+        );
+      }
+    }
+
     const hashed = hashPassword(newPassword);
     const nextSv = Number(sessionUser.sessionVersion || 1) + 1;
+    let dbSaved = false;
 
-    await updateDbUserFields(sessionUser.id, {
+    const updated = await updateDbUserFields(sessionUser.id, {
       password_hash: hashed,
       session_version: nextSv,
-    });
+    }).catch(() => false);
+    if (updated) dbSaved = true;
+
     try {
-      await queryPostgres(
+      const pgRes = await queryPostgres(
         `UPDATE public.profiles
          SET password_hash = $1, session_version = $2, updated_at = NOW()
-         WHERE id = $3 OR LOWER(email) = LOWER($4)`,
+         WHERE id::text = $3 OR LOWER(COALESCE(email, '')) = LOWER($4)
+         RETURNING id`,
         [hashed, nextSv, sessionUser.id, sessionUser.email || '']
       );
+      if (pgRes?.rows && pgRes.rows.length > 0) dbSaved = true;
     } catch {}
 
-    serverStore.updateUserPassword(sessionUser.id, hashed);
+    serverStore.updateUserPassword(sessionUser.id, hashed, {
+      isPreHashed: true,
+      nextSessionVersion: nextSv,
+    });
 
     try {
       const sbAdmin = getSupabaseAdmin();
       if (sbAdmin) {
-        if (sessionUser.id.includes('-')) {
+        if (isUuid(sessionUser.id)) {
           try {
             await sbAdmin.auth.admin.updateUserById(sessionUser.id, { password: newPassword });
           } catch {}
         }
-        await sbAdmin
-          .from('profiles')
-          .update({ password_hash: hashed, session_version: nextSv, updated_at: new Date().toISOString() })
-          .eq('id', sessionUser.id);
+        const sbProfRes = isUuid(sessionUser.id)
+          ? await sbAdmin
+              .from('profiles')
+              .update({ password_hash: hashed, session_version: nextSv, updated_at: new Date().toISOString() })
+              .eq('id', sessionUser.id)
+          : sessionUser.email
+          ? await sbAdmin
+              .from('profiles')
+              .update({ password_hash: hashed, session_version: nextSv, updated_at: new Date().toISOString() })
+              .ilike('email', sessionUser.email)
+          : { error: new Error('Missing identifier') };
+        if (!sbProfRes.error) dbSaved = true;
       }
     } catch (sbErr) {
       console.warn('[change-password] Supabase update notice:', sbErr);
+    }
+
+    if (isDatabaseConfigured() && !dbSaved) {
+      return NextResponse.json(
+        { error: 'Không thể lưu mật khẩu mới vào Database. Vui lòng thử lại.' },
+        { status: 500 }
+      );
     }
 
     const res = NextResponse.json({

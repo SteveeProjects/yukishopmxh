@@ -144,7 +144,7 @@ async function notifyCustomerTelegram(token: string, order: any, title: string, 
 }
 
 async function processOrderOrTopupAction(params: {
-  action: 'approve' | 'reject' | 'deliver_empty';
+  action: 'approve' | 'approve_upgraded' | 'request_2fa' | 'reject' | 'deliver_empty';
   entity: 'order' | 'topup';
   id: string;
   callerId: string;
@@ -153,6 +153,7 @@ async function processOrderOrTopupAction(params: {
 }): Promise<string> {
   const { action, entity, id, callerId, chatId, botToken } = params;
   const sbAdmin = getSupabaseAdmin();
+  const isUuidId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
   const effectiveItem = await findDbOrderByCode(id);
   const localTopup = serverStore.loadTopups().find((t) => t.code === id || t.id === id);
 
@@ -160,17 +161,21 @@ async function processOrderOrTopupAction(params: {
   if (!effectiveItem && !localTopup) {
     try {
       const pgD = await queryPostgres(
-        `SELECT * FROM public.deposit_requests WHERE request_code = $1 OR transfer_code = $1 OR id = $1 LIMIT 1`,
+        `SELECT * FROM public.deposit_requests WHERE request_code = $1 OR transfer_code = $1 OR id::text = $1 LIMIT 1`,
         [id]
       );
       if (pgD?.rows?.[0]) dbDep = pgD.rows[0];
     } catch {}
     if (!dbDep && sbAdmin) {
-      const { data } = await sbAdmin
-        .from('deposit_requests')
-        .select('*')
-        .or(`request_code.eq.${id},transfer_code.eq.${id},id.eq.${id}`)
-        .maybeSingle();
+      let { data } = await sbAdmin.from('deposit_requests').select('*').eq('request_code', id).maybeSingle();
+      if (!data) {
+        const byTr = await sbAdmin.from('deposit_requests').select('*').eq('transfer_code', id).maybeSingle();
+        data = byTr.data;
+      }
+      if (!data && isUuidId) {
+        const byUuid = await sbAdmin.from('deposit_requests').select('*').eq('id', id).maybeSingle();
+        data = byUuid.data;
+      }
       dbDep = data;
     }
   }
@@ -198,6 +203,45 @@ async function processOrderOrTopupAction(params: {
     Boolean(dbDep) ||
     String(target.item_name || '').toLowerCase().includes('nạp ví');
 
+  if (action === 'request_2fa' && !isDeposit) {
+    const noteText =
+      '⚠️ Admin đang xử lý đơn — vui lòng gửi thêm mã 2FA / Backup Code hoặc xác nhận đăng nhập qua Telegram @YukiIsMe2311.';
+    await updateDbOrderFields(id, {
+      status: 'processing',
+      approval_mode: 'awaiting_2fa',
+      admin_note: noteText,
+      approved_by: 'ADMIN_TELEGRAM',
+    });
+    await notifyCustomerTelegram(
+      botToken,
+      target,
+      `⏳ ĐƠN #${esc(id)} CẦN BỔ SUNG MÃ 2FA / XÁC MINH`,
+      `${esc(noteText)}\n👉 Nhắn ngay @YukiIsMe2311 để Admin hoàn tất nâng cấp.`
+    );
+    return `⏳ Đã chuyển đơn #${id} sang Đang xử lý / Xin thêm 2FA.`;
+  }
+
+  if (action === 'approve_upgraded' && !isDeposit) {
+    await clearTelegramSession(callerId, 'main');
+    const upgradedMsg =
+      '✅ Đã nâng cấp chính chủ / Đã gửi lời mời Family thành công! Vui lòng kiểm tra tài khoản hoặc hộp thư Gmail.';
+    await updateDbOrderFields(id, {
+      status: 'completed',
+      approval_mode: 'upgraded_family',
+      delivery_info: upgradedMsg,
+      delivered_data: upgradedMsg,
+      approved_by: 'ADMIN_TELEGRAM_UPGRADE',
+    });
+    await awardOrderCashbackPersistent(id).catch(() => {});
+    await notifyCustomerTelegram(
+      botToken,
+      target,
+      `✨ ĐƠN #${esc(id)} ĐÃ NÂNG CẤP / ADD FAMILY XONG!`,
+      `${esc(upgradedMsg)}`
+    );
+    return `✨ Đã duyệt hoàn tất Nâng cấp / Add Family cho đơn #${id}!`;
+  }
+
   if (action === 'deliver_empty') {
     await clearTelegramSession(callerId, 'main');
     await updateDbOrderFields(id, {
@@ -222,29 +266,50 @@ async function processOrderOrTopupAction(params: {
       if (depositAmount <= 0) return '⚠️ Số tiền nạp không hợp lệ.';
 
       const nowISO = new Date().toISOString();
+      let depClaimed = false;
       try {
-        await queryPostgres(
-          `UPDATE public.deposit_requests SET status = 'approved', approved_by = 'ADMIN_TELEGRAM', approved_at = NOW(), updated_at = NOW()
-           WHERE request_code = $1 OR transfer_code = $1 OR id = $1`,
+        const pgDepClaim = await queryPostgres(
+          `UPDATE public.deposit_requests
+           SET status = 'approved', approved_by = 'ADMIN_TELEGRAM', approved_at = NOW(), updated_at = NOW()
+           WHERE (request_code = $1 OR transfer_code = $1 OR id::text = $1)
+             AND status IN ('pending', 'waiting_confirm')
+           RETURNING id`,
           [id]
         );
-        await queryPostgres(
-          `UPDATE public.orders SET status = 'completed', paid = true, approved_by = 'ADMIN_TELEGRAM', updated_at = NOW()
-           WHERE order_code = $1 OR id = $1`,
+        const pgOrdClaim = await queryPostgres(
+          `UPDATE public.orders
+           SET status = 'completed', paid = true, approved_by = 'ADMIN_TELEGRAM', updated_at = NOW()
+           WHERE (order_code = $1 OR id::text = $1)
+             AND status IN ('pending', 'waiting_confirm')
+           RETURNING id`,
           [id]
         );
+        if ((pgDepClaim?.rows?.length || 0) > 0 || (pgOrdClaim?.rows?.length || 0) > 0) {
+          depClaimed = true;
+        } else if (pgDepClaim !== null || pgOrdClaim !== null) {
+          return `⚠️ Đơn nạp #${id} đã được xử lý trước đó.`;
+        }
       } catch {}
 
-      if (sbAdmin) {
+      if (!depClaimed && sbAdmin) {
         try {
-          await sbAdmin
-            .from('deposit_requests')
-            .update({ status: 'approved', approved_by: 'ADMIN_TELEGRAM', approved_at: nowISO, updated_at: nowISO })
-            .or(`request_code.eq.${id},transfer_code.eq.${id},id.eq.${id}`);
-          await sbAdmin
-            .from('orders')
-            .update({ status: 'completed', paid: true, approved_by: 'ADMIN_TELEGRAM', updated_at: nowISO })
-            .or(`order_code.eq.${id},id.eq.${id}`);
+          const [{ data: sbDep }, { data: sbOrd }] = await Promise.all([
+            sbAdmin
+              .from('deposit_requests')
+              .update({ status: 'approved', approved_by: 'ADMIN_TELEGRAM', approved_at: nowISO, updated_at: nowISO })
+              .eq('request_code', id)
+              .in('status', ['pending', 'waiting_confirm'])
+              .select('id'),
+            sbAdmin
+              .from('orders')
+              .update({ status: 'completed', paid: true, approved_by: 'ADMIN_TELEGRAM', updated_at: nowISO })
+              .eq('order_code', id)
+              .in('status', ['pending', 'waiting_confirm'])
+              .select('id'),
+          ]);
+          if ((sbDep?.length || 0) === 0 && (sbOrd?.length || 0) === 0) {
+            return `⚠️ Đơn nạp #${id} đã được xử lý trước đó.`;
+          }
         } catch {}
       }
 
@@ -299,7 +364,26 @@ async function processOrderOrTopupAction(params: {
     return `⏳ Đang chờ Admin nhập thông tin bàn giao cho đơn #${id}...`;
   }
 
-  // Reject action -> cancel & refund if paid
+  // Reject action -> atomic claim BEFORE cancel/refund
+  let canRefund = true;
+  try {
+    const pgOrdCancel = await queryPostgres(
+      `UPDATE public.orders
+       SET status = 'cancelled', approved_by = 'ADMIN_TELEGRAM_REJECT', updated_at = NOW()
+       WHERE (order_code = $1 OR id::text = $1)
+         AND status IN ('pending', 'waiting_confirm', 'processing')
+       RETURNING order_code`,
+      [id]
+    );
+    if (!isDeposit && pgOrdCancel !== null && (!pgOrdCancel.rows || pgOrdCancel.rows.length === 0)) {
+      canRefund = false;
+    }
+  } catch {}
+
+  if (!canRefund) {
+    return `⚠️ Đơn #${id} đã được xử lý hoặc hoàn tiền trước đó.`;
+  }
+
   let refunded = false;
   if (!isDeposit) {
     const orderAmount = Number(target.total_amount ?? target.amount ?? 0);
@@ -324,7 +408,7 @@ async function processOrderOrTopupAction(params: {
   try {
     await queryPostgres(
       `UPDATE public.deposit_requests SET status = 'rejected', approved_by = 'ADMIN_TELEGRAM_REJECT', updated_at = NOW()
-       WHERE request_code = $1 OR transfer_code = $1 OR id = $1`,
+       WHERE request_code = $1 OR transfer_code = $1 OR id::text = $1`,
       [id]
     );
   } catch {}
@@ -333,7 +417,7 @@ async function processOrderOrTopupAction(params: {
       await sbAdmin
         .from('deposit_requests')
         .update({ status: 'rejected', approved_by: 'ADMIN_TELEGRAM_REJECT', updated_at: new Date().toISOString() })
-        .or(`request_code.eq.${id},transfer_code.eq.${id},id.eq.${id}`);
+        .eq('request_code', id);
     } catch {}
   }
   serverStore.updateTopupStatus(id, 'rejected');
@@ -485,7 +569,11 @@ export async function POST(req: Request) {
             for (const o of pendingOrders) {
               lines.push(`• <code>${esc(o.code)}</code> — ${esc(o.name)} — <b>${fmt(o.amount)}</b>`);
               kbRows.push([
-                { text: `✅ Bàn giao ${o.code}`, callback_data: `ord_ok:${o.code}` },
+                { text: `🔑 Giao ${o.code}`, callback_data: `ord_ok:${o.code}` },
+                { text: `✨ Nâng xong ${o.code}`, callback_data: `ord_upg:${o.code}` },
+              ]);
+              kbRows.push([
+                { text: `⏳ Xin 2FA ${o.code}`, callback_data: `ord_2fa:${o.code}` },
                 { text: `❌ Hủy ${o.code}`, callback_data: `ord_no:${o.code}` },
               ]);
             }
@@ -644,7 +732,11 @@ export async function POST(req: Request) {
       for (const o of pendingOrders) {
         lines.push(`• 📦 <code>${esc(o.code)}</code> (${esc(o.name)}): <b>${fmt(o.amount)}</b>`);
         kbRows.push([
-          { text: `✅ Duyệt ${o.code}`, callback_data: `ord_ok:${o.code}` },
+          { text: `🔑 Giao ${o.code}`, callback_data: `ord_ok:${o.code}` },
+          { text: `✨ Nâng xong ${o.code}`, callback_data: `ord_upg:${o.code}` },
+        ]);
+        kbRows.push([
+          { text: `⏳ Xin 2FA ${o.code}`, callback_data: `ord_2fa:${o.code}` },
           { text: `❌ Hủy ${o.code}`, callback_data: `ord_no:${o.code}` },
         ]);
       }
@@ -674,11 +766,13 @@ export async function POST(req: Request) {
     }
 
     // Parse entity/action callbacks
-    let action: 'approve' | 'reject' | 'deliver_empty' | '' = '';
+    let action: 'approve' | 'approve_upgraded' | 'request_2fa' | 'reject' | 'deliver_empty' | '' = '';
     let entity: 'order' | 'topup' | 'withdrawal' = 'order';
     let id = '';
 
     if (dataStr.startsWith('ord_ok:')) { action = 'approve'; entity = 'order'; id = dataStr.slice(7); }
+    else if (dataStr.startsWith('ord_upg:')) { action = 'approve_upgraded'; entity = 'order'; id = dataStr.slice(8); }
+    else if (dataStr.startsWith('ord_2fa:')) { action = 'request_2fa'; entity = 'order'; id = dataStr.slice(8); }
     else if (dataStr.startsWith('ord_no:')) { action = 'reject'; entity = 'order'; id = dataStr.slice(7); }
     else if (dataStr.startsWith('deliv_none:')) { action = 'deliver_empty'; entity = 'order'; id = dataStr.slice(11); }
     else if (dataStr.startsWith('wd_ok:')) { action = 'approve'; entity = 'withdrawal'; id = dataStr.slice(6); }
@@ -698,13 +792,14 @@ export async function POST(req: Request) {
     // Handle Affiliate Withdrawal callbacks
     if (entity === 'withdrawal' && id) {
       const sbAdmin = getSupabaseAdmin();
+      const isWdUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
       let wd: any = serverStore.findAffiliateWithdrawalById(id);
       if (!wd) {
-        const pgW = await queryPostgres(`SELECT * FROM public.affiliate_withdrawals WHERE id = $1 LIMIT 1`, [id]).catch(() => null);
+        const pgW = await queryPostgres(`SELECT * FROM public.affiliate_withdrawals WHERE id::text = $1 LIMIT 1`, [id]).catch(() => null);
         if (pgW?.rows?.[0]) {
           const r = pgW.rows[0];
           wd = { id: r.id, userId: r.user_id, amount: Number(r.amount || 0), status: r.status };
-        } else if (sbAdmin) {
+        } else if (sbAdmin && isWdUuid) {
           const { data } = await sbAdmin.from('affiliate_withdrawals').select('*').eq('id', id).maybeSingle();
           if (data) wd = { id: data.id, userId: data.user_id, amount: Number(data.amount || 0), status: data.status };
         }
@@ -720,25 +815,42 @@ export async function POST(req: Request) {
       }
 
       const nextStatus = action === 'approve' ? 'approved' : 'rejected';
-      serverStore.updateAffiliateWithdrawalStatus(id, nextStatus, action === 'reject' ? 'Từ chối qua Telegram Admin' : undefined);
-      await queryPostgres(
-        `UPDATE public.affiliate_withdrawals SET status = $1, processed_at = NOW(), updated_at = NOW() WHERE id = $2`,
+      let wdClaimed = false;
+      const pgWd = await queryPostgres(
+        `UPDATE public.affiliate_withdrawals
+         SET status = $1, processed_at = NOW(), updated_at = NOW()
+         WHERE id::text = $2 AND status = 'pending'
+         RETURNING id`,
         [nextStatus, id]
-      ).catch(() => {});
-      if (sbAdmin) {
+      ).catch(() => null);
+      if (pgWd?.rows && pgWd.rows.length > 0) {
+        wdClaimed = true;
+      } else if (pgWd !== null) {
+        if (botToken && callback.id) await callTelegramApi(botToken, 'answerCallbackQuery', { callback_query_id: callback.id, text: 'Yêu cầu rút tiền đã được xử lý trước đó!', show_alert: true });
+        return NextResponse.json({ ok: true, alreadyProcessed: true });
+      }
+
+      if (!wdClaimed && sbAdmin && isWdUuid) {
         try {
-          await sbAdmin
+          const { data: sbWdClaim } = await sbAdmin
             .from('affiliate_withdrawals')
             .update({ status: nextStatus, processed_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-            .eq('id', id);
+            .eq('id', id)
+            .eq('status', 'pending')
+            .select('id');
+          if (sbWdClaim && sbWdClaim.length === 0) {
+            if (botToken && callback.id) await callTelegramApi(botToken, 'answerCallbackQuery', { callback_query_id: callback.id, text: 'Yêu cầu rút tiền đã được xử lý trước đó!', show_alert: true });
+            return NextResponse.json({ ok: true, alreadyProcessed: true });
+          }
         } catch {}
       }
+      serverStore.updateAffiliateWithdrawalStatus(id, nextStatus, action === 'reject' ? 'Từ chối qua Telegram Admin' : undefined);
 
       if (action === 'reject') {
         const refundAmt = Math.max(0, Number(wd.amount || wd.netAmount || 0));
         serverStore.adjustAffiliateBalance(wd.userId, refundAmt, 0);
         await queryPostgres(
-          `UPDATE public.profiles SET affiliate_balance = COALESCE(affiliate_balance, 0) + $1, updated_at = NOW() WHERE id = $2`,
+          `UPDATE public.profiles SET affiliate_balance = COALESCE(affiliate_balance, 0) + $1, updated_at = NOW() WHERE id::text = $2`,
           [refundAmt, wd.userId]
         ).catch(() => {});
       }
@@ -791,7 +903,7 @@ export async function POST(req: Request) {
         botToken &&
         callback.message?.chat?.id &&
         callback.message?.message_id &&
-        (action === 'reject' || action === 'deliver_empty' || (action === 'approve' && (entity === 'topup' || /^YukiSp_/i.test(id))))
+        (action === 'reject' || action === 'deliver_empty' || action === 'approve_upgraded' || action === 'request_2fa' || (action === 'approve' && (entity === 'topup' || /^YukiSp_/i.test(id))))
       ) {
         await callTelegramApi(botToken, 'editMessageText', {
           chat_id: callback.message.chat.id,

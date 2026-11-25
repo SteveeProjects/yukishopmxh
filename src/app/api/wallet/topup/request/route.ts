@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { NextResponse } from 'next/server';
 import { serverStore } from '@/lib/server-store';
 import { getSupabaseAdmin } from '@/lib/supabase/admin';
@@ -63,22 +64,25 @@ export async function POST(request: Request) {
 
     let dbWriteSucceeded = false;
 
-    // 1. Insert into PostgreSQL deposit_requests & orders
+    // 1. Insert into PostgreSQL deposit_requests & orders (always valid UUID for id)
     try {
+      const depRowId = crypto.randomUUID();
+      const ordRowId = crypto.randomUUID();
       const depPg = await queryPostgres(
         `INSERT INTO public.deposit_requests
           (id, request_code, order_number, user_id, username, user_email, user_name, user_contact, amount, transfer_code, transfer_content, bank_code, payment_method, status, telegram_notified, created_at, updated_at)
-         VALUES ($1, $1, $2, $3, $4, $5, $6, $7, $8, $1, $1, 'ZALOPAY', 'VIETQR', 'pending', false, NOW(), NOW())
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $2, $2, 'ZALOPAY', 'VIETQR', 'pending', false, NOW(), NOW())
          ON CONFLICT (request_code) DO NOTHING`,
-        [referenceCode, orderNumber, userId, currentUser.username || userName, userEmail, userName, userContact, amount]
+        [depRowId, referenceCode, orderNumber, userId, currentUser.username || userName, userEmail, userName, userContact, amount]
       );
 
       await queryPostgres(
         `INSERT INTO public.orders
           (id, order_code, order_number, user_id, user_email, user_name, user_contact, delivery_contact, telegram_id, order_type, service_type, item_name, product_sku, sku, amount, total_amount, quantity, status, paid, notes, telegram_notified, created_at, updated_at)
-         VALUES ($1, $1, $2, $3, $4, $5, $6, $6, $7, 'DEPOSIT', 'NAP_VI', $8, 'TOPUP-VIETQR', 'TOPUP-ZALOPAY', $9, $9, 1, 'pending', false, $10, false, NOW(), NOW())
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $8, 'DEPOSIT', 'NAP_VI', $9, 'TOPUP-VIETQR', 'TOPUP-ZALOPAY', $10, $10, 1, 'pending', false, $11, false, NOW(), NOW())
          ON CONFLICT (order_code) DO NOTHING`,
         [
+          ordRowId,
           referenceCode,
           orderNumber,
           userId,
@@ -96,13 +100,12 @@ export async function POST(request: Request) {
       console.warn('[topup/request] Postgres insert notice:', pgErr);
     }
 
-    // 2. Save in Supabase REST if configured
+    // 2. Save in Supabase REST if configured (omit id so Postgres/Supabase UUID default applies cleanly)
     try {
       const supabaseAdmin = getSupabaseAdmin();
       if (supabaseAdmin) {
         const { error: depErr } = await supabaseAdmin.from('deposit_requests').upsert(
           {
-            id: referenceCode,
             request_code: referenceCode,
             order_number: orderNumber,
             user_id: userId,
@@ -125,7 +128,6 @@ export async function POST(request: Request) {
 
         await supabaseAdmin.from('orders').upsert(
           {
-            id: referenceCode,
             order_code: referenceCode,
             order_number: orderNumber,
             user_id: userId,

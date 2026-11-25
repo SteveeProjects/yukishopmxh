@@ -230,6 +230,7 @@ function WalletContent() {
     setIsSubmitting(true);
     try {
       const res = await fetch('/api/deposits/confirm', {
+        cache: 'no-store',
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ referenceCode, amount: qrAmount }),
@@ -254,6 +255,7 @@ function WalletContent() {
     setIsCancelling(true);
     try {
       const res = await fetch('/api/wallet/topup/cancel', {
+        cache: 'no-store',
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ referenceCode }),
@@ -282,6 +284,7 @@ function WalletContent() {
     setRedeemNotice(null);
     try {
       const res = await fetch('/api/wallet/redeem-points', {
+        cache: 'no-store',
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),

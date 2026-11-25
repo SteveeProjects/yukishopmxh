@@ -12,6 +12,12 @@ export async function POST(req: NextRequest) {
     }
 
     const cleanId = identifier.trim();
+    if (!cleanId || cleanId.length > 120 || !/^[a-zA-Z0-9_@.+ -]+$/.test(cleanId)) {
+      return NextResponse.json(
+        { error: 'INVALID_IDENTIFIER', message: 'Định dạng thông tin tra cứu không hợp lệ.' },
+        { status: 400 }
+      );
+    }
     const cleanTele = cleanId.startsWith('@') ? cleanId.slice(1) : cleanId;
 
     // Fast-path resolution for Official Admin Credentials
@@ -43,17 +49,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'DB_UNCONFIGURED', message: 'Hệ thống đang cấu hình.' }, { status: 500 });
     }
 
-    // Query profiles for any match: email, phone, phone_number, telegram_id, telegram_username
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('email, phone, phone_number, telegram_id, telegram_username')
-      .or(`email.ilike.${cleanId},phone.eq.${cleanId},phone_number.eq.${cleanId},telegram_id.ilike.${cleanTele},telegram_username.ilike.${cleanTele}`)
-      .limit(1)
-      .maybeSingle();
-
-    if (error) {
-      console.error('Identifier lookup error:', error);
-    }
+    // Safe parallel single-column lookups (prevents PostgREST .or() filter injection)
+    const lookups = await Promise.all([
+      supabase.from('profiles').select('email').ilike('email', cleanId).limit(1).maybeSingle(),
+      supabase.from('profiles').select('email').eq('phone', cleanId).limit(1).maybeSingle(),
+      supabase.from('profiles').select('email').ilike('telegram_id', cleanTele).limit(1).maybeSingle(),
+      supabase.from('profiles').select('email').ilike('username', cleanTele).limit(1).maybeSingle(),
+    ]);
+    const data = lookups.find((r) => r.data?.email)?.data || null;
 
     if (data && data.email) {
       return NextResponse.json({ found: true, email: data.email });

@@ -19,7 +19,7 @@ export function AdminWarrantyTab() {
   const loadClaims = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/admin/warranty');
+      const res = await fetch('/api/admin/warranty', { cache: 'no-store', credentials: 'include' });
       if (res.ok) {
         const data = await res.json();
         setClaims(Array.isArray(data.claims) ? data.claims : []);
@@ -77,6 +77,7 @@ export function AdminWarrantyTab() {
 
     try {
       const res = await fetch('/api/admin/warranty', {
+        cache: 'no-store',
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

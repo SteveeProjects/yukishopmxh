@@ -42,7 +42,7 @@ export async function GET(req: Request) {
       const pgRes = isAdmin
         ? await queryPostgres(`SELECT * FROM public.orders ORDER BY created_at DESC LIMIT 150`)
         : await queryPostgres(
-            `SELECT * FROM public.orders WHERE user_id = $1 OR ($2 <> '' AND LOWER(COALESCE(user_email, '')) = LOWER($2)) ORDER BY created_at DESC LIMIT 100`,
+            `SELECT * FROM public.orders WHERE user_id::text = $1 OR ($2 <> '' AND LOWER(COALESCE(user_email, '')) = LOWER($2)) ORDER BY created_at DESC LIMIT 100`,
             [localUser.id, localUser.email || '']
           );
       for (const pgo of pgRes?.rows || []) {

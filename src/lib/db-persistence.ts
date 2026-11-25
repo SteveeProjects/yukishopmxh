@@ -6,7 +6,9 @@
 //   3. Writable local /tmp fallback cache (Serverless safe)
 // ==============================================================================
 
+import crypto from 'crypto';
 import { getSupabaseAdmin } from '@/lib/supabase/admin';
+import { isUuid } from '@/lib/supabase/env';
 import { queryPostgres, ensureDatabaseReady } from '@/lib/autoMigrate';
 import { getSystemSetting, setSystemSetting } from '@/lib/system-settings';
 import {
@@ -59,7 +61,7 @@ export async function findDbUserByIdOrIdentifier(idOrIdent: string): Promise<Loc
   try {
     const pgRes = await queryPostgres(
       `SELECT * FROM public.profiles
-       WHERE id = $1
+       WHERE id::text = $1
           OR LOWER(COALESCE(email, '')) = $2
           OR LOWER(COALESCE(username, '')) = $2
           OR LOWER(REPLACE(COALESCE(telegram_id, ''), '@', '')) = $3
@@ -77,7 +79,7 @@ export async function findDbUserByIdOrIdentifier(idOrIdent: string): Promise<Loc
     const sb = getSupabaseAdmin();
     if (sb) {
       const queries = [
-        sb.from('profiles').select('*').eq('id', raw).maybeSingle(),
+        ...(isUuid(raw) ? [sb.from('profiles').select('*').eq('id', raw).maybeSingle()] : []),
         sb.from('profiles').select('*').ilike('email', cleanLower).maybeSingle(),
         sb.from('profiles').select('*').ilike('username', cleanLower).maybeSingle(),
         sb.from('profiles').select('*').eq('phone', raw).maybeSingle(),
@@ -146,7 +148,7 @@ export async function updateDbUserFields(
     vals.push(userId);
 
     const res = await queryPostgres(
-      `UPDATE public.profiles SET ${sets.join(', ')} WHERE id = $${idx} OR email = $${idx}`,
+      `UPDATE public.profiles SET ${sets.join(', ')} WHERE id::text = $${idx} OR LOWER(COALESCE(email, '')) = LOWER($${idx})`,
       vals
     );
     if (res) ok = true;
@@ -160,7 +162,9 @@ export async function updateDbUserFields(
     if (sb) {
       const sbPatch: Record<string, any> = { updated_at: nowISO };
       for (const [k, v] of entries) sbPatch[k] = v;
-      const { error } = await sb.from('profiles').update(sbPatch).eq('id', userId);
+      const { error } = isUuid(userId)
+        ? await sb.from('profiles').update(sbPatch).eq('id', userId)
+        : await sb.from('profiles').update(sbPatch).ilike('email', userId);
       if (!error) ok = true;
     }
   } catch (sbErr) {
@@ -238,6 +242,21 @@ export async function nextSequentialDepositCode(
       }
       for (const o of serverStore.loadOrders()) {
         maxSeq = Math.max(maxSeq, extractYukiSeqNumber(o.order_code));
+      }
+    } catch {}
+
+    try {
+      const pgSeq = await queryPostgres(`SELECT nextval('public.deposit_order_seq') AS seq`);
+      const seqNum = Number(pgSeq?.rows?.[0]?.seq || 0);
+      if (Number.isFinite(seqNum) && seqNum > 0) {
+        const padded = String(seqNum).padStart(6, '0');
+        const tag = formatUserHintTag(userHint);
+        const code = tag ? `YUKISP_DH${padded}_${tag}` : `YUKISP_DH${padded}`;
+        await setSystemSetting('deposit_order_seq', {
+          lastSeq: seqNum,
+          updatedAt: new Date().toISOString(),
+        }).catch(() => {});
+        return { code, sequence: seqNum, orderNumber: seqNum };
       }
     } catch {}
 
@@ -329,7 +348,7 @@ export async function findDbOrderByCode(orderCode: string): Promise<LocalOrder |
 
   try {
     const pgRes = await queryPostgres(
-      `SELECT * FROM public.orders WHERE UPPER(order_code) = UPPER($1) OR id = $1 LIMIT 1`,
+      `SELECT * FROM public.orders WHERE UPPER(order_code) = UPPER($1) OR id::text = $1 LIMIT 1`,
       [code]
     );
     if (pgRes?.rows?.[0]) {
@@ -359,6 +378,8 @@ export async function findDbOrderByCode(orderCode: string): Promise<LocalOrder |
         telegram_notified: Boolean(r.telegram_notified),
         account_credentials: r.account_credentials || undefined,
         delivery_info: r.delivery_info || r.delivered_data || undefined,
+        admin_note: r.admin_note || undefined,
+        approval_mode: r.approval_mode || undefined,
         warranty_days: r.warranty_days !== undefined ? Number(r.warranty_days) : 30,
         warranty_claimed: Boolean(r.warranty_claimed),
         warranty_claim_reason: r.warranty_claim_reason || undefined,
@@ -377,7 +398,7 @@ export async function findDbOrderByCode(orderCode: string): Promise<LocalOrder |
     const sb = getSupabaseAdmin();
     if (sb) {
       let { data: r } = await sb.from('orders').select('*').eq('order_code', code).maybeSingle();
-      if (!r) {
+      if (!r && isUuid(code)) {
         const byId = await sb.from('orders').select('*').eq('id', code).maybeSingle();
         r = byId.data;
       }
@@ -403,6 +424,8 @@ export async function findDbOrderByCode(orderCode: string): Promise<LocalOrder |
           refunded: Boolean(r.refunded),
           account_credentials: r.account_credentials || undefined,
           delivery_info: r.delivery_info || r.delivered_data || undefined,
+          admin_note: r.admin_note || undefined,
+          approval_mode: r.approval_mode || undefined,
           warranty_days: r.warranty_days !== undefined ? Number(r.warranty_days) : 30,
           warranty_claimed: Boolean(r.warranty_claimed),
           warranty_claim_reason: r.warranty_claim_reason || undefined,
@@ -436,6 +459,8 @@ export async function updateDbOrderFields(
     'refunded',
     'delivered_data',
     'delivery_info',
+    'admin_note',
+    'approval_mode',
     'approved_by',
     'notes',
     'warranty_claimed',
@@ -464,7 +489,7 @@ export async function updateDbOrderFields(
       sets.push('updated_at = NOW()');
       vals.push(code);
       const res = await queryPostgres(
-        `UPDATE public.orders SET ${sets.join(', ')} WHERE UPPER(order_code) = UPPER($${idx}) OR id = $${idx}`,
+        `UPDATE public.orders SET ${sets.join(', ')} WHERE UPPER(order_code) = UPPER($${idx}) OR id::text = $${idx}`,
         vals
       );
       if (res) ok = true;
@@ -476,7 +501,11 @@ export async function updateDbOrderFields(
         const sbPatch: Record<string, any> = { updated_at: nowISO };
         for (const [k, v] of cleanEntries) sbPatch[k] = v;
         const { error: e1 } = await sb.from('orders').update(sbPatch).eq('order_code', code);
-        const { error: e2 } = await sb.from('orders').update(sbPatch).eq('id', code);
+        let e2: any = true;
+        if (isUuid(code)) {
+          const r2 = await sb.from('orders').update(sbPatch).eq('id', code);
+          e2 = r2.error;
+        }
         if (!e1 || !e2) ok = true;
       }
     } catch {}
@@ -497,13 +526,14 @@ export async function appendMacroDroidLogDb(
   });
 
   await ensureDatabaseReady().catch(() => {});
+  const dbLogId = isUuid(created.id) ? created.id : crypto.randomUUID();
   try {
     await queryPostgres(
       `INSERT INTO public.webhook_logs (id, source, method, title, content, raw_payload, received_amount, order_code, status, message, created_at)
        VALUES ($1, 'MACRODROID', $2, $3, $4, $5, $6, $7, $8, $9, NOW())
        ON CONFLICT (id) DO NOTHING`,
       [
-        created.id,
+        dbLogId,
         created.method || 'POST',
         created.title || '',
         created.text || '',
@@ -519,7 +549,7 @@ export async function appendMacroDroidLogDb(
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
        ON CONFLICT (id) DO NOTHING`,
       [
-        created.id,
+        dbLogId,
         created.method || 'POST',
         created.title || '',
         created.text || '',
@@ -590,6 +620,7 @@ export async function savePasswordResetTokenDb(record: {
   await ensureDatabaseReady().catch(() => {});
   const expiresISO = new Date(record.expiresAt).toISOString();
 
+  const tokenRowId = isUuid(record.id) ? record.id : crypto.randomUUID();
   try {
     await queryPostgres(
       `UPDATE public.password_reset_tokens SET used = TRUE WHERE LOWER(email) = LOWER($1) AND used = FALSE`,
@@ -604,7 +635,7 @@ export async function savePasswordResetTokenDb(record: {
          used = FALSE,
          verified_telegram = EXCLUDED.verified_telegram`,
       [
-        record.id,
+        tokenRowId,
         record.token,
         record.email.toLowerCase(),
         record.userId || null,
@@ -625,7 +656,7 @@ export async function savePasswordResetTokenDb(record: {
         .eq('email', record.email.toLowerCase())
         .eq('used', false);
       await sb.from('password_reset_tokens').upsert({
-        id: record.id,
+        id: tokenRowId,
         token: record.token,
         email: record.email.toLowerCase(),
         user_id: record.userId || null,
@@ -647,7 +678,7 @@ export async function findPasswordResetTokenDb(tokenInput: string): Promise<Pass
   try {
     const pgRes = await queryPostgres(
       `SELECT * FROM public.password_reset_tokens
-       WHERE (UPPER(token) = UPPER($1) OR id = $1) AND used = FALSE
+       WHERE (UPPER(token) = UPPER($1) OR id::text = $1) AND used = FALSE
        LIMIT 1`,
       [clean]
     );
@@ -679,7 +710,7 @@ export async function findPasswordResetTokenDb(tokenInput: string): Promise<Pass
         .ilike('token', clean)
         .eq('used', false)
         .maybeSingle();
-      if (!r) {
+      if (!r && isUuid(clean)) {
         const byId = await sb
           .from('password_reset_tokens')
           .select('*')
@@ -716,7 +747,7 @@ export async function markPasswordResetTokenUsedDb(tokenOrId: string): Promise<v
   serverStore.markPasswordResetTokenUsed(clean);
   try {
     await queryPostgres(
-      `UPDATE public.password_reset_tokens SET used = TRUE WHERE UPPER(token) = UPPER($1) OR id = $1`,
+      `UPDATE public.password_reset_tokens SET used = TRUE WHERE UPPER(token) = UPPER($1) OR id::text = $1`,
       [clean]
     );
   } catch {}
@@ -724,7 +755,9 @@ export async function markPasswordResetTokenUsedDb(tokenOrId: string): Promise<v
     const sb = getSupabaseAdmin();
     if (sb) {
       await sb.from('password_reset_tokens').update({ used: true }).ilike('token', clean);
-      await sb.from('password_reset_tokens').update({ used: true }).eq('id', clean);
+      if (isUuid(clean)) {
+        await sb.from('password_reset_tokens').update({ used: true }).eq('id', clean);
+      }
     }
   } catch {}
 }

@@ -2,13 +2,14 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Mail, Send, Lock, ShieldCheck, Gift, AlertCircle, ArrowRight } from 'lucide-react';
+import { Mail, Send, Lock, ShieldCheck, Gift, AlertCircle, ArrowRight, Eye, EyeOff } from 'lucide-react';
 
 export default function RegisterPage() {
   const [email, setEmail] = useState('');
   const [telegramId, setTelegramId] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [referralCode, setReferralCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -43,8 +44,8 @@ export default function RegisterPage() {
       return;
     }
 
-    if (!cleanTele || !/^\d{5,15}$/.test(cleanTele)) {
-      setErrorMsg('ID Telegram phải là dãy số gồm 5 đến 15 chữ số (VD: 6123456789). Lấy tại @userinfobot.');
+    if (!cleanTele || !/^(\d{5,15}|[a-zA-Z0-9_]{4,32})$/.test(cleanTele)) {
+      setErrorMsg('Telegram phải là ID số (5-15 chữ số) hoặc @username hợp lệ (4-32 ký tự).');
       return;
     }
 
@@ -63,6 +64,8 @@ export default function RegisterPage() {
     try {
       const res = await fetch('/api/auth/register', {
         method: 'POST',
+        cache: 'no-store',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: cleanEmail,
@@ -134,24 +137,24 @@ export default function RegisterPage() {
             </p>
           </div>
 
-          {/* 2. ID Telegram cá nhân (Dãy số) */}
+          {/* 2. ID hoặc @Username Telegram cá nhân */}
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1 flex items-center gap-1.5">
               <Send className="w-3.5 h-3.5 text-slate-400 stroke-[1.75]" />
-              <span>ID Telegram cá nhân (Dãy số 1-1)</span>
+              <span>ID số hoặc @Username Telegram</span>
             </label>
             <input
               type="text"
               required
               value={telegramId}
-              onChange={(e) => setTelegramId(e.target.value.replace(/\D/g, ''))}
-              placeholder="VD: 6123456789 (Chỉ nhập số)"
+              onChange={(e) => setTelegramId(e.target.value.replace(/[^a-zA-Z0-9_@]/g, ''))}
+              placeholder="VD: 6123456789 hoặc @yuki_user"
               className="w-full rounded-2xl border border-white/[0.1] bg-black/40 px-4 py-2.5 text-sm text-white font-mono placeholder-slate-500 focus:border-[#0A84FF] focus:outline-none transition"
             />
             <p className="text-[11px] text-slate-400 mt-1 flex items-center gap-1">
               <ArrowRight className="w-3 h-3 text-[#0A84FF] shrink-0" />
               <span>
-                Lấy ID số của bạn tại{' '}
+                Lấy ID số tại{' '}
                 <a
                   href="https://t.me/userinfobot"
                   target="_blank"
@@ -160,7 +163,7 @@ export default function RegisterPage() {
                 >
                   @userinfobot
                 </a>{' '}
-                trên Telegram để nhận mã OTP đổi mật khẩu
+                hoặc nhập @username Telegram để nhận OTP &amp; hỗ trợ đơn hàng
               </span>
             </p>
           </div>
@@ -172,14 +175,24 @@ export default function RegisterPage() {
                 <Lock className="w-3.5 h-3.5 text-slate-400 stroke-[1.75]" />
                 <span>Mật khẩu</span>
               </label>
-              <input
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Tối thiểu 6 ký tự..."
-                className="w-full rounded-2xl border border-white/[0.1] bg-black/40 px-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:border-[#0A84FF] focus:outline-none transition"
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Tối thiểu 6 ký tự..."
+                  className="w-full rounded-2xl border border-white/[0.1] bg-black/40 pl-3.5 pr-9 py-2.5 text-sm text-white placeholder-slate-500 focus:border-[#0A84FF] focus:outline-none transition"
+                />
+                <button
+                  type="button"
+                  aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                  onClick={() => setShowPassword((v) => !v)}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-white transition"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
             </div>
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1 flex items-center gap-1.5">
@@ -187,7 +200,7 @@ export default function RegisterPage() {
                 <span>Nhập lại MK</span>
               </label>
               <input
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 required
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}

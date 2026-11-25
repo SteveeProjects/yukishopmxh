@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
     try {
       const pgRes = await queryPostgres(
         `SELECT * FROM public.deposit_requests
-         WHERE request_code = $1 OR transfer_code = $1 OR transfer_content = $1 OR id = $1
+         WHERE request_code = $1 OR transfer_code = $1 OR transfer_content = $1 OR id::text = $1
          LIMIT 1`,
         [referenceCode]
       );
@@ -134,12 +134,12 @@ export async function POST(req: NextRequest) {
     try {
       await queryPostgres(
         `UPDATE public.deposit_requests SET telegram_notified = true, updated_at = NOW()
-         WHERE request_code = $1 OR transfer_code = $1 OR id = $1`,
+         WHERE request_code = $1 OR transfer_code = $1 OR id::text = $1`,
         [referenceCode]
       );
       await queryPostgres(
         `UPDATE public.orders SET telegram_notified = true, updated_at = NOW()
-         WHERE order_code = $1 OR id = $1`,
+         WHERE order_code = $1 OR id::text = $1`,
         [referenceCode]
       );
     } catch (pgErr) {

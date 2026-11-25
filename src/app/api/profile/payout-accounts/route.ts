@@ -4,6 +4,7 @@ import { serverStore } from '@/lib/server-store';
 import { normalizeAccountHolderName } from '@/lib/constants/vietnam-banks';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function GET(req: NextRequest) {
   try {

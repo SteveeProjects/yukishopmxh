@@ -59,6 +59,7 @@ export default function ProfilePage() {
   const [profileError, setProfileError] = useState<string | null>(null);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
 
+  const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null);
@@ -90,6 +91,7 @@ export default function ProfilePage() {
     setBindReferrerMsg(null);
     try {
       const res = await fetch('/api/affiliate/bind-referrer', {
+        cache: 'no-store',
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code: bindCode.trim() }),
@@ -119,7 +121,7 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (!user) return;
-    fetch('/api/affiliate')
+    fetch('/api/affiliate', { cache: 'no-store', credentials: 'include' })
       .then((res) => res.json())
       .then((json) => {
         if (json?.success && json.data) {
@@ -171,6 +173,7 @@ export default function ProfilePage() {
         return;
       }
       const res = await fetch('/api/user/profile', {
+        cache: 'no-store',
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -198,6 +201,10 @@ export default function ProfilePage() {
     setPasswordSuccess(null);
     setPasswordError(null);
 
+    if (!currentPassword) {
+      setPasswordError('Vui lòng nhập mật khẩu hiện tại.');
+      return;
+    }
     if (newPassword.length < 6) {
       setPasswordError('Mật khẩu mới phải có tối thiểu 6 ký tự.');
       return;
@@ -211,8 +218,10 @@ export default function ProfilePage() {
     try {
       const res = await fetch('/api/user/change-password', {
         method: 'POST',
+        cache: 'no-store',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ newPassword }),
+        body: JSON.stringify({ currentPassword, newPassword }),
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
@@ -220,6 +229,7 @@ export default function ProfilePage() {
         return;
       }
       setPasswordSuccess(data.message || 'Đã cập nhật mật khẩu mới thành công!');
+      setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
     } catch (err: any) {
@@ -290,6 +300,7 @@ export default function ProfilePage() {
           setRedeemMsg(null);
           try {
             const res = await fetch('/api/wallet/redeem-points', {
+        cache: 'no-store',
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({}),
@@ -521,6 +532,7 @@ export default function ProfilePage() {
             setPresetNotice(null);
             try {
               const res = await fetch('/api/profile/saved-contacts', {
+        cache: 'no-store',
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -611,6 +623,7 @@ export default function ProfilePage() {
                   type="button"
                   onClick={async () => {
                     await fetch(`/api/profile/saved-contacts?id=${encodeURIComponent(preset.id)}`, {
+        cache: 'no-store',
                       method: 'DELETE',
                     });
                     await refreshUserData();
@@ -695,6 +708,14 @@ export default function ProfilePage() {
               </div>
             )}
 
+            <Input
+              label="Mật khẩu hiện tại"
+              type="password"
+              placeholder="••••••••"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              required
+            />
             <Input
               label="Mật khẩu mới (tối thiểu 6 ký tự)"
               type="password"

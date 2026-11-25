@@ -306,7 +306,7 @@ export default function LuckySpinPage() {
   // Fetch spin state
   const loadSpinState = useCallback(async () => {
     try {
-      const res = await fetch('/api/spin/state');
+      const res = await fetch('/api/spin/state', { cache: 'no-store', credentials: 'include' });
       const data = await res.json();
       if (data.success) {
         setSpinTickets(data.spinTickets || 0);
@@ -321,7 +321,7 @@ export default function LuckySpinPage() {
   // Fetch recent public spin logs
   const loadRecentLogs = useCallback(async () => {
     try {
-      const res = await fetch('/api/spin/history');
+      const res = await fetch('/api/spin/history', { cache: 'no-store', credentials: 'include' });
       const data = await res.json();
       if (data.success && Array.isArray(data.logs)) {
         setRecentLogs(data.logs);
@@ -333,7 +333,7 @@ export default function LuckySpinPage() {
   const loadUserVouchers = useCallback(async () => {
     if (!user) return;
     try {
-      const res = await fetch('/api/user/vouchers');
+      const res = await fetch('/api/user/vouchers', { cache: 'no-store', credentials: 'include' });
       const data = await res.json();
       if (data.success && Array.isArray(data.vouchers)) {
         setUserVouchers(data.vouchers);
@@ -595,6 +595,7 @@ export default function LuckySpinPage() {
 
     try {
       const res = await fetch('/api/spin/roll', {
+        cache: 'no-store',
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });

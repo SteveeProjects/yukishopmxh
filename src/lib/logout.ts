@@ -10,6 +10,7 @@ export async function handleLogout() {
 
   await supabase.auth.signOut().catch(() => {});
   await fetch('/api/auth/logout', {
+        cache: 'no-store',
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ allDevices: false }),

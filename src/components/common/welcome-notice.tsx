@@ -101,6 +101,7 @@ export default function WelcomeNotice({ customTelegramUrl, onOpenStateChange }: 
             </div>
           </div>
           <button 
+            type="button"
             onClick={handleDismiss} 
             className="w-8 h-8 rounded-full bg-white/[0.06] text-slate-400 hover:text-white flex items-center justify-center transition"
             aria-label="Đóng thông báo"
@@ -179,6 +180,7 @@ export default function WelcomeNotice({ customTelegramUrl, onOpenStateChange }: 
             </a>
           </div>
           <button
+            type="button"
             onClick={handleDismiss}
             className="touch-target w-full py-2.5 px-4 rounded-2xl btn-ios-white text-slate-950 font-bold text-xs flex items-center justify-center shadow transition"
           >

@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 import { checkRateLimit, type RateLimitCategory } from '@/lib/rate-limit';
+import { getSupabaseAnonKey, getSupabaseUrl } from '@/lib/supabase/env';
 
 const PUBLIC_PATHS = [
   '/',
@@ -10,6 +11,7 @@ const PUBLIC_PATHS = [
   '/sms',
   '/login',
   '/register',
+  '/signup',
   '/forgot-password',
   '/terms',
   '/privacy',
@@ -59,13 +61,14 @@ function getEdgeSessionSecret(): string {
     process.env.SESSION_SECRET ||
     process.env.NEXTAUTH_SECRET ||
     process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_SECRET_KEY ||
+    process.env.POSTGRES_URL_NON_POOLING ||
     process.env.POSTGRES_URL ||
     process.env.DATABASE_URL ||
-    process.env.TELEGRAM_BOT_TOKEN ||
     ''
   ).trim();
   if (configured) return configured;
-  if (process.env.VERCEL === '1' && process.env.NODE_ENV === 'production') {
+  if (process.env.NODE_ENV === 'production') {
     return '';
   }
   return 'yuki-shop-mxh-local-dev-secret-v4';
@@ -204,11 +207,17 @@ export async function middleware(request: NextRequest) {
   if (pathname.startsWith('/api/')) {
     let category: RateLimitCategory = 'GENERAL';
     if (
-      pathname.startsWith('/api/auth') ||
-      pathname.startsWith('/api/spin') ||
-      pathname.startsWith('/api/orders') ||
-      pathname.startsWith('/api/affiliate') ||
-      pathname.startsWith('/api/wallet')
+      pathname === '/api/auth/login' ||
+      pathname === '/api/auth/register' ||
+      pathname === '/api/auth/forgot-password' ||
+      pathname === '/api/auth/reset-password' ||
+      pathname === '/api/user/change-password' ||
+      pathname === '/api/spin/roll' ||
+      pathname === '/api/orders/create' ||
+      pathname === '/api/checkout' ||
+      pathname === '/api/affiliate/action' ||
+      pathname === '/api/wallet/topup/request' ||
+      pathname === '/api/wallet/redeem-points'
     ) {
       category = 'SENSITIVE';
     } else if (
@@ -248,13 +257,15 @@ export async function middleware(request: NextRequest) {
 
   // 6. Check Supabase Auth Session
   let supabaseUser: any = null;
-  const isPlaceholder = (process.env.NEXT_PUBLIC_SUPABASE_URL || '').includes('placeholder');
-  if (!isPlaceholder && process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+  const sbUrl = getSupabaseUrl();
+  const sbAnon = getSupabaseAnonKey();
+  const isPlaceholder = sbUrl.includes('placeholder');
+  if (!isPlaceholder && sbUrl && sbAnon) {
     try {
       const tempResponse = NextResponse.next();
       const supabase = createServerClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+        sbUrl,
+        sbAnon,
         {
           cookies: {
             getAll() {
@@ -291,10 +302,10 @@ export async function middleware(request: NextRequest) {
     return withSecurityHeaders(NextResponse.redirect(new URL('/login', request.url)));
   }
 
-  // 8. Redirect authenticated users away from /login or /register
+  // 8. Redirect authenticated users away from /login, /register or /signup
   if (
     isAuth &&
-    (pathname === '/login' || pathname === '/register') &&
+    (pathname === '/login' || pathname === '/register' || pathname === '/signup') &&
     !request.nextUrl.searchParams.has('expired') &&
     !request.nextUrl.searchParams.has('force')
   ) {

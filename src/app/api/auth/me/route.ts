@@ -6,8 +6,9 @@ import {
   getSessionCookieOptions,
   isSessionPayloadValid,
 } from '@/lib/session-token';
-import { ensureDatabaseReady, queryPostgres } from '@/lib/autoMigrate';
+import { ensureDatabaseReady, isDatabaseConfigured, queryPostgres } from '@/lib/autoMigrate';
 import { getSupabaseAdmin } from '@/lib/supabase/admin';
+import { isUuid } from '@/lib/supabase/env';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -47,15 +48,17 @@ export async function GET(req: Request) {
 
     // Always query PostgreSQL public.profiles for fresh balance & state
     let dbUser: any = null;
+    let dbQueryFailed = false;
     try {
       const pgRes = await queryPostgres(
-        `SELECT * FROM public.profiles WHERE id = $1 OR email = $2 LIMIT 1`,
-        [parsed.id, parsed.email || '']
+        `SELECT * FROM public.profiles WHERE id::text = $1 OR LOWER(COALESCE(email, '')) = LOWER($2) LIMIT 1`,
+        [String(parsed.id), String(parsed.email || '')]
       );
       if (pgRes?.rows && pgRes.rows.length > 0) {
         dbUser = pgRes.rows[0];
       }
     } catch (pgErr) {
+      dbQueryFailed = true;
       console.warn('[auth/me] Postgres lookup notice:', pgErr);
     }
 
@@ -64,14 +67,16 @@ export async function GET(req: Request) {
       try {
         const sbAdmin = getSupabaseAdmin();
         if (sbAdmin) {
-          const { data: prof } = await sbAdmin
-            .from('profiles')
-            .select('*')
-            .eq('id', parsed.id)
-            .maybeSingle();
-          if (prof) dbUser = prof;
+          const profRes = isUuid(parsed.id)
+            ? await sbAdmin.from('profiles').select('*').eq('id', parsed.id).maybeSingle()
+            : parsed.email
+            ? await sbAdmin.from('profiles').select('*').ilike('email', String(parsed.email)).maybeSingle()
+            : { data: null };
+          if (profRes.data) dbUser = profRes.data;
         }
-      } catch {}
+      } catch {
+        dbQueryFailed = true;
+      }
     }
 
     const localUser = serverStore.findUserById(parsed.id);
@@ -98,7 +103,15 @@ export async function GET(req: Request) {
         }
       : (localUser || null);
 
-    if (!isSessionPayloadValid(parsed, freshUser)) {
+    const allowTransientSessionFallback =
+      !freshUser &&
+      (!isDatabaseConfigured() || dbQueryFailed) &&
+      String(parsed.role || '').toLowerCase() !== 'admin';
+
+    if (!isSessionPayloadValid(parsed, freshUser) && !(allowTransientSessionFallback && isSessionPayloadValid(parsed, null))) {
+      if (dbQueryFailed && String(parsed.role || '').toLowerCase() !== 'admin') {
+        return NextResponse.json({ error: 'Tạm thời không kết nối được cơ sở dữ liệu.' }, { status: 503 });
+      }
       return clearInvalidCookieResponse(req);
     }
 
@@ -123,8 +136,8 @@ export async function GET(req: Request) {
       const pgDep = await queryPostgres(
         `SELECT COALESCE(SUM(amount), 0) AS total
          FROM public.deposit_requests
-         WHERE user_id = $1 AND status IN ('approved', 'completed')`,
-        [user.id]
+         WHERE user_id::text = $1 AND status IN ('approved', 'completed')`,
+        [String(user.id)]
       );
       const pgTotal = Number(pgDep?.rows?.[0]?.total || 0);
       lifetimeDeposit = Math.max(lifetimeDeposit, pgTotal, Number(dbUser?.total_deposited || 0));

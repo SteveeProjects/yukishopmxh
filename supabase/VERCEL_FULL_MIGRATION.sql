@@ -101,7 +101,7 @@ CREATE INDEX IF NOT EXISTS idx_profiles_refcode ON public.profiles(referral_code
 
 INSERT INTO public.profiles (id, email, username, full_name, telegram_id, password_hash, role, balance, session_version, created_at, updated_at)
 VALUES (
-  'admin_kyomeyuki2k',
+  gen_random_uuid()::text,
   'kyomeyuki2k@gmail.com',
   'kyomeyuki2k',
   'Admin YukiIsMe2311',
@@ -168,14 +168,29 @@ ALTER TABLE public.deposit_requests ADD COLUMN IF NOT EXISTS bank_code TEXT DEFA
 ALTER TABLE public.deposit_requests ADD COLUMN IF NOT EXISTS approved_by TEXT;
 ALTER TABLE public.deposit_requests ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ;
 ALTER TABLE public.deposit_requests ADD COLUMN IF NOT EXISTS tx_ref TEXT;
+ALTER TABLE public.deposit_requests ADD COLUMN IF NOT EXISTS fingerprint TEXT;
+
+CREATE SEQUENCE IF NOT EXISTS public.deposit_order_seq START WITH 1 INCREMENT BY 1;
 
 CREATE INDEX IF NOT EXISTS idx_dep_req_code ON public.deposit_requests(request_code);
 CREATE INDEX IF NOT EXISTS idx_dep_transfer ON public.deposit_requests(transfer_code);
 CREATE INDEX IF NOT EXISTS idx_dep_user ON public.deposit_requests(user_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_dep_fingerprint_uniq ON public.deposit_requests(fingerprint) WHERE fingerprint IS NOT NULL;
 
 -- ==============================================================================
--- 4. PRODUCTS, COUPONS & ORDERS
+-- 4. CATEGORIES, PRODUCTS, COUPONS & ORDERS
 -- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.categories (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT UNIQUE NOT NULL,
+  slug TEXT,
+  icon TEXT DEFAULT 'Folder',
+  description TEXT DEFAULT '',
+  sort_order INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS public.products (
   id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
   sku TEXT UNIQUE NOT NULL,
@@ -185,11 +200,15 @@ CREATE TABLE IF NOT EXISTS public.products (
   sell_price NUMERIC(15, 2) NOT NULL DEFAULT 0,
   original_price NUMERIC(15, 2) DEFAULT 0,
   cost_price NUMERIC(15, 2) DEFAULT 0,
-  category TEXT NOT NULL DEFAULT 'AI & Công Nghệ',
-  display_section TEXT DEFAULT 'Trang Chủ - Sản Phẩm Nổi Bật',
+  supplier_name TEXT DEFAULT 'Kho Bản Quyền Yuki',
+  category TEXT NOT NULL DEFAULT 'Google Gemini',
+  display_section TEXT DEFAULT 'Google Gemini',
   image_url TEXT,
   icon TEXT,
-  input_type TEXT DEFAULT 'none',
+  input_type TEXT DEFAULT 'admin_deliver',
+  delivery_mode TEXT DEFAULT 'admin_deliver',
+  custom_input_label TEXT DEFAULT '',
+  fulfillment_mode TEXT DEFAULT 'MANUAL',
   allow_voucher BOOLEAN DEFAULT TRUE,
   is_active BOOLEAN DEFAULT TRUE,
   is_hidden BOOLEAN DEFAULT FALSE,
@@ -199,6 +218,21 @@ CREATE TABLE IF NOT EXISTS public.products (
   sort_order INTEGER DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS delivery_mode TEXT DEFAULT 'admin_deliver';
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS custom_input_label TEXT DEFAULT '';
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS fulfillment_mode TEXT DEFAULT 'MANUAL';
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS supplier_name TEXT DEFAULT 'Kho Bản Quyền Yuki';
+
+DELETE FROM public.products
+WHERE sku IN (
+  'GEMINI-PRO-24M-FAMILY',
+  'GEMINI-ULTRA-3M',
+  'GEMINI-ULTRA-1M-FAMILY',
+  'GEMINI-PRO-3M-SLOT',
+  'GEMINI-ULTRA-12M-SLOT',
+  'GEMINI-ULTRA-UPGRADE'
 );
 
 CREATE TABLE IF NOT EXISTS public.coupons (
@@ -274,6 +308,8 @@ CREATE TABLE IF NOT EXISTS public.orders (
 
 ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS order_number BIGINT;
 ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS delivery_info TEXT;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS admin_note TEXT;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS approval_mode TEXT;
 ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS approved_by TEXT;
 ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS paid BOOLEAN DEFAULT FALSE;
 ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS deducted_balance BOOLEAN DEFAULT FALSE;
@@ -410,23 +446,81 @@ ALTER TABLE public.saved_payout_accounts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.affiliate_withdrawals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.webhook_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.macro_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.categories ENABLE ROW LEVEL SECURITY;
+
+CREATE OR REPLACE FUNCTION public.handle_new_user_provisioning()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  BEGIN
+    INSERT INTO public.profiles (id, email, username, full_name, telegram_id, role, balance, session_version, created_at, updated_at)
+    VALUES (
+      NEW.id::text,
+      LOWER(NEW.email),
+      COALESCE(NEW.raw_user_meta_data->>'username', split_part(COALESCE(NEW.email, ''), '@', 1)),
+      COALESCE(NEW.raw_user_meta_data->>'full_name', split_part(COALESCE(NEW.email, ''), '@', 1)),
+      NEW.raw_user_meta_data->>'telegram_id',
+      'user',
+      0,
+      1,
+      NOW(),
+      NOW()
+    )
+    ON CONFLICT (email) DO NOTHING;
+  EXCEPTION WHEN OTHERS THEN
+    RETURN NEW;
+  END;
+  RETURN NEW;
+END;
+$$;
 
 DO $$
-DECLARE tbl TEXT;
+DECLARE
+  tbl TEXT;
+  r RECORD;
 BEGIN
+  FOR r IN (
+    SELECT c.conname, t.relname
+    FROM pg_constraint c
+    JOIN pg_class t ON c.conrelid = t.oid
+    JOIN pg_namespace n ON t.relnamespace = n.oid
+    WHERE n.nspname = 'public' AND c.contype = 'f' AND c.confrelid = 'auth.users'::regclass
+  ) LOOP
+    EXECUTE format('ALTER TABLE public.%I DROP CONSTRAINT IF EXISTS %I;', r.relname, r.conname);
+  END LOOP;
+
+  FOR r IN (
+    SELECT c.conname, t.relname
+    FROM pg_constraint c
+    JOIN pg_class t ON c.conrelid = t.oid
+    JOIN pg_namespace n ON t.relnamespace = n.oid
+    WHERE n.nspname = 'public' AND c.contype = 'c'
+      AND t.relname IN ('profiles','products','orders','deposit_requests','wallet_transactions','topup_requests')
+  ) LOOP
+    EXECUTE format('ALTER TABLE public.%I DROP CONSTRAINT IF EXISTS %I;', r.relname, r.conname);
+  END LOOP;
+
   FOREACH tbl IN ARRAY ARRAY[
     'profiles','wallet_transactions','deposit_requests','orders','system_settings',
-    'products','coupons','password_reset_tokens','telegram_bot_sessions',
+    'products','categories','buff_services','coupons','password_reset_tokens','telegram_bot_sessions',
     'referral_logs','saved_payout_accounts','affiliate_withdrawals','webhook_logs','macro_logs'
   ]
   LOOP
-    EXECUTE format('DROP POLICY IF EXISTS "service_role_all_%I" ON public.%I;', tbl, tbl);
-    EXECUTE format('CREATE POLICY "service_role_all_%I" ON public.%I FOR ALL TO service_role USING (true) WITH CHECK (true);', tbl, tbl);
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = tbl) THEN
+      EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY;', tbl);
+      EXECUTE format('DROP POLICY IF EXISTS "service_role_all_%I" ON public.%I;', tbl, tbl);
+      EXECUTE format('CREATE POLICY "service_role_all_%I" ON public.%I FOR ALL TO service_role USING (true) WITH CHECK (true);', tbl, tbl);
+    END IF;
   END LOOP;
 END $$;
 
-GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
-GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
+REVOKE ALL ON ALL TABLES IN SCHEMA public FROM anon, authenticated;
+REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM anon, authenticated;
+GRANT ALL ON ALL TABLES IN SCHEMA public TO service_role;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO service_role;
 NOTIFY pgrst, 'reload schema';
 
 COMMIT;

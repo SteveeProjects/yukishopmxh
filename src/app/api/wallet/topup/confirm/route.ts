@@ -50,12 +50,12 @@ export async function POST(request: Request) {
 
     try {
       const pgOrd = await queryPostgres(
-        `SELECT * FROM public.orders WHERE order_code = $1 OR id = $1 LIMIT 1`,
+        `SELECT * FROM public.orders WHERE order_code = $1 OR id::text = $1 LIMIT 1`,
         [referenceCode]
       );
       if (pgOrd?.rows?.[0]) dbOrder = pgOrd.rows[0];
       const pgDep = await queryPostgres(
-        `SELECT * FROM public.deposit_requests WHERE request_code = $1 OR transfer_code = $1 OR id = $1 LIMIT 1`,
+        `SELECT * FROM public.deposit_requests WHERE request_code = $1 OR transfer_code = $1 OR id::text = $1 LIMIT 1`,
         [referenceCode]
       );
       if (pgDep?.rows?.[0]) dbDeposit = pgDep.rows[0];
@@ -135,12 +135,12 @@ export async function POST(request: Request) {
     try {
       await queryPostgres(
         `UPDATE public.deposit_requests SET telegram_notified = true, updated_at = NOW()
-         WHERE request_code = $1 OR transfer_code = $1 OR id = $1`,
+         WHERE request_code = $1 OR transfer_code = $1 OR id::text = $1`,
         [referenceCode]
       );
       await queryPostgres(
         `UPDATE public.orders SET telegram_notified = true, updated_at = NOW()
-         WHERE order_code = $1 OR id = $1`,
+         WHERE order_code = $1 OR id::text = $1`,
         [referenceCode]
       );
     } catch {}

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { serverStore } from '@/lib/server-store';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 function maskActor(raw: string): string {
   const s = String(raw || '').trim();

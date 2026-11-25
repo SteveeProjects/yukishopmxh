@@ -46,7 +46,7 @@ export default function AdminInventoryPage() {
 
   const loadProducts = async () => {
     try {
-      const res = await fetch('/api/admin/catalog');
+      const res = await fetch('/api/admin/catalog', { cache: 'no-store', credentials: 'include' });
       if (res.ok) {
         const data = await res.json();
         if (data.products) setProducts(data.products);
@@ -60,7 +60,7 @@ export default function AdminInventoryPage() {
 
   const loadCategories = async () => {
     try {
-      const res = await fetch('/api/admin/categories');
+      const res = await fetch('/api/admin/categories', { cache: 'no-store', credentials: 'include' });
       if (res.ok) {
         const data = await res.json();
         if (data.categories) setCustomCategories(data.categories);
@@ -108,6 +108,7 @@ export default function AdminInventoryPage() {
       };
 
       const res = await fetch('/api/admin/catalog', {
+        cache: 'no-store',
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -131,6 +132,7 @@ export default function AdminInventoryPage() {
 
     try {
       const res = await fetch('/api/admin/catalog', {
+        cache: 'no-store',
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sku: p.sku }),

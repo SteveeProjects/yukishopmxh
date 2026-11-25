@@ -4,6 +4,7 @@ import { serverStore } from '@/lib/server-store';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function POST(req: NextRequest) {
   try {

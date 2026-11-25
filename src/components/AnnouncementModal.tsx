@@ -39,7 +39,7 @@ export default function AnnouncementModal() {
       setIsOpen(true);
     };
 
-    fetch('/api/settings/announcement')
+    fetch('/api/settings/announcement', { cache: 'no-store', credentials: 'include' })
       .then((res) => res.json())
       .then((json) => {
         if (!json.success || !json.data) return;

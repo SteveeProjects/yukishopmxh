@@ -50,7 +50,7 @@ export function checkRateLimit(
 
   let limit = 90; // Default General API: 90 req / min / IP
   if (category === 'SENSITIVE' || category === 'AUTH' || category === 'TRANSACTION') {
-    limit = 15; // Sensitive endpoints: max 15 req / min / IP
+    limit = 30; // Sensitive write endpoints: max 30 req / min / IP
   } else if (category === 'LOOKUP') {
     limit = 20;
   } else if (category === 'API_READ' || category === 'GENERAL') {

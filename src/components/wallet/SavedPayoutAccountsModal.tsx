@@ -69,7 +69,7 @@ export default function SavedPayoutAccountsModal({
   const fetchAccounts = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/profile/payout-accounts');
+      const res = await fetch('/api/profile/payout-accounts', { cache: 'no-store', credentials: 'include' });
       const data = await res.json();
       if (data.success && Array.isArray(data.accounts)) {
         setAccounts(data.accounts);
@@ -146,6 +146,7 @@ export default function SavedPayoutAccountsModal({
     setSaving(true);
     try {
       const res = await fetch('/api/profile/payout-accounts', {
+        cache: 'no-store',
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -179,6 +180,7 @@ export default function SavedPayoutAccountsModal({
   const handleDeleteAccount = async (id: string) => {
     try {
       const res = await fetch(`/api/profile/payout-accounts?id=${id}`, {
+        cache: 'no-store',
         method: 'DELETE',
       });
       const data = await res.json();
@@ -195,6 +197,7 @@ export default function SavedPayoutAccountsModal({
   const handleSetDefault = async (id: string) => {
     try {
       const res = await fetch('/api/profile/payout-accounts', {
+        cache: 'no-store',
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id }),
@@ -253,6 +256,8 @@ export default function SavedPayoutAccountsModal({
             </div>
           </div>
           <button
+            type="button"
+            aria-label="Đóng sổ tài khoản"
             onClick={onClose}
             className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/[0.06] transition"
           >

@@ -130,7 +130,7 @@ export function AdminSystemWalletTab() {
   const loadGlobalLedger = async (q = ledgerSearch) => {
     setLoadingLedger(true);
     try {
-      const res = await fetch(`/api/admin/wallet-ledger?q=${encodeURIComponent(q)}&limit=100`);
+      const res = await fetch(`/api/admin/wallet-ledger?q=${encodeURIComponent(q)}&limit=100`, { cache: 'no-store', credentials: 'include' });
       if (res.ok) {
         const json = await res.json();
         setGlobalLedger(Array.isArray(json.entries) ? json.entries : []);
@@ -226,6 +226,7 @@ export function AdminSystemWalletTab() {
     setTgNotice(null);
     try {
       const res = await fetch('/api/admin/telegram-config', {
+        cache: 'no-store',
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -273,6 +274,7 @@ export function AdminSystemWalletTab() {
         webhookDomainInput.trim() ||
         (typeof window !== 'undefined' ? window.location.origin : '');
       const res = await fetch('/api/admin/telegram/sync-bots', {
+        cache: 'no-store',
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -296,6 +298,7 @@ export function AdminSystemWalletTab() {
     if (!ok) return;
     try {
       const res = await fetch('/api/admin/ctv-codes', {
+        cache: 'no-store',
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ withdrawalId, action }),
@@ -316,7 +319,7 @@ export function AdminSystemWalletTab() {
 
   const loadBotStatus = async () => {
     try {
-      const res = await fetch('/api/admin/telegram/sync-bots');
+      const res = await fetch('/api/admin/telegram/sync-bots', { cache: 'no-store', credentials: 'include' });
       if (res.ok) {
         const json = await res.json();
         setBotStatus(json);
@@ -332,6 +335,7 @@ export function AdminSystemWalletTab() {
     setBotNotice(null);
     try {
       const res = await fetch('/api/admin/telegram/sync-bots', {
+        cache: 'no-store',
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'sync_commands' }),
@@ -350,7 +354,7 @@ export function AdminSystemWalletTab() {
     setTestingPing(true);
     setBotNotice(null);
     try {
-      const res = await fetch('/api/admin/test-bot', { method: 'POST' });
+      const res = await fetch('/api/admin/test-bot', { cache: 'no-store', method: 'POST' });
       const json = await res.json();
       setBotNotice(json.message || (json.success ? 'Đã gửi test ping thành công!' : json.error));
       await loadBotStatus();
@@ -365,7 +369,7 @@ export function AdminSystemWalletTab() {
     setTestingTelegram(true);
     setTelegramNotice(null);
     try {
-      const res = await fetch('/api/admin/test-telegram', { method: 'POST' });
+      const res = await fetch('/api/admin/test-telegram', { cache: 'no-store', method: 'POST' });
       const json = await res.json();
       if (res.ok && json.success) {
         setTelegramNotice({
@@ -393,6 +397,7 @@ export function AdminSystemWalletTab() {
     setTelegramNotice(null);
     try {
       const res = await fetch('/api/admin/macrodroid/test', {
+        cache: 'no-store',
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -427,6 +432,7 @@ export function AdminSystemWalletTab() {
     setBotNotice(null);
     try {
       const res = await fetch('/api/admin/telegram/sync-bots', {
+        cache: 'no-store',
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'delete_webhook' }),
@@ -458,6 +464,7 @@ export function AdminSystemWalletTab() {
 
     try {
       const res = await fetch('/api/admin/wallet/adjust', {
+        cache: 'no-store',
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -497,6 +504,7 @@ export function AdminSystemWalletTab() {
     setTopRewardNotice(null);
     try {
       const res = await fetch('/api/admin/top-depositors/distribute-rewards', {
+        cache: 'no-store',
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -522,6 +530,7 @@ export function AdminSystemWalletTab() {
     setSpinTicketsNotice(null);
     try {
       const res = await fetch('/api/admin/spin/tickets', {
+        cache: 'no-store',
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -547,6 +556,7 @@ export function AdminSystemWalletTab() {
     setAnnNotice(null);
     try {
       const res = await fetch('/api/admin/settings/announcement', {
+        cache: 'no-store',
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(annConfig),
@@ -567,6 +577,7 @@ export function AdminSystemWalletTab() {
     setSysNotice(null);
     try {
       const res = await fetch('/api/admin/settings/announcement', {
+        cache: 'no-store',
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ systemConfig: sysCfg }),
@@ -588,6 +599,7 @@ export function AdminSystemWalletTab() {
     setCtvNotice(null);
     try {
       const res = await fetch('/api/admin/ctv-codes', {
+        cache: 'no-store',
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -612,6 +624,7 @@ export function AdminSystemWalletTab() {
 
   const handleDeleteCtvCode = async (code: string) => {
     const res = await fetch(`/api/admin/ctv-codes?code=${encodeURIComponent(code)}`, {
+        cache: 'no-store',
       method: 'DELETE',
     });
     if (res.ok) {

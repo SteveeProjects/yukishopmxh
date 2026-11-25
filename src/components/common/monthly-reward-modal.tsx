@@ -43,7 +43,7 @@ export function MonthlyRewardModal() {
       return;
     }
     try {
-      const res = await fetch('/api/user/monthly-reward/unseen');
+      const res = await fetch('/api/user/monthly-reward/unseen', { cache: 'no-store', credentials: 'include' });
       const data = await res.json();
       if (data.success && data.notification) {
         setNotification(data.notification);
@@ -73,6 +73,7 @@ export function MonthlyRewardModal() {
     setClaiming(true);
     try {
       const res = await fetch('/api/user/monthly-reward/claim', {
+        cache: 'no-store',
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ notificationId: notification.id }),
@@ -99,6 +100,7 @@ export function MonthlyRewardModal() {
     if (!notification) return;
     try {
       await fetch('/api/user/monthly-reward/claim', {
+        cache: 'no-store',
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ notificationId: notification.id }),

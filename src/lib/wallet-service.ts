@@ -2,10 +2,12 @@
 // YUKISHOPMXH — CENTRALIZED WALLET SERVICE (ATOMIC BALANCE & IMMUTABLE LEDGER)
 // ==============================================================================
 
+import crypto from 'crypto';
 import { getSupabaseAdmin } from '@/lib/supabase/admin';
 import { serverStore } from '@/lib/server-store';
 import { userMutex } from '@/lib/mutex';
-import { queryPostgres } from '@/lib/autoMigrate';
+import { queryPostgres, isPostgresConfigured } from '@/lib/autoMigrate';
+import { isUuid } from '@/lib/supabase/env';
 
 export interface BalanceAdjustmentParams {
   userId: string;
@@ -29,7 +31,7 @@ export async function getUserBalance(userId: string): Promise<number> {
   // 1. Direct PostgreSQL query (Primary source of truth)
   try {
     const pgRes = await queryPostgres(
-      `SELECT balance FROM public.profiles WHERE id = $1 LIMIT 1`,
+      `SELECT balance FROM public.profiles WHERE id::text = $1 OR LOWER(COALESCE(email, '')) = LOWER($1) LIMIT 1`,
       [userId]
     );
     if (pgRes?.rows && pgRes.rows.length > 0 && pgRes.rows[0].balance !== null) {
@@ -43,39 +45,37 @@ export async function getUserBalance(userId: string): Promise<number> {
   try {
     const supabaseAdmin = getSupabaseAdmin();
     if (supabaseAdmin) {
-      // Query profiles
-      const { data: profile } = await supabaseAdmin
-        .from('profiles')
-        .select('balance')
-        .eq('id', userId)
-        .maybeSingle();
+      // Query profiles by UUID or email fallback
+      const { data: profile } = isUuid(userId)
+        ? await supabaseAdmin.from('profiles').select('balance').eq('id', userId).maybeSingle()
+        : await supabaseAdmin.from('profiles').select('balance').ilike('email', userId).maybeSingle();
 
       if (profile && profile.balance !== null && profile.balance !== undefined) {
         return Math.max(0, Number(profile.balance));
       }
 
-      // Query wallet_accounts if exists
-      const { data: walletAccount } = await (supabaseAdmin as any)
-        .from('wallet_accounts')
-        .select('balance')
-        .eq('user_id', userId)
-        .maybeSingle();
+      if (isUuid(userId)) {
+        const { data: walletAccount } = await (supabaseAdmin as any)
+          .from('wallet_accounts')
+          .select('balance')
+          .eq('user_id', userId)
+          .maybeSingle();
 
-      if (walletAccount && walletAccount.balance !== null && walletAccount.balance !== undefined) {
-        return Math.max(0, Number(walletAccount.balance));
-      }
+        if (walletAccount && walletAccount.balance !== null && walletAccount.balance !== undefined) {
+          return Math.max(0, Number(walletAccount.balance));
+        }
 
-      // Query wallets if exists
-      const { data: wallet } = await (supabaseAdmin as any)
-        .from('wallets')
-        .select('available_balance, balance')
-        .eq('user_id', userId)
-        .maybeSingle();
+        const { data: wallet } = await (supabaseAdmin as any)
+          .from('wallets')
+          .select('available_balance, balance')
+          .eq('user_id', userId)
+          .maybeSingle();
 
-      if (wallet) {
-        const bal = wallet.available_balance !== undefined ? wallet.available_balance : wallet.balance;
-        if (bal !== null && bal !== undefined) {
-          return Math.max(0, Number(bal));
+        if (wallet) {
+          const bal = wallet.available_balance !== undefined ? wallet.available_balance : wallet.balance;
+          if (bal !== null && bal !== undefined) {
+            return Math.max(0, Number(bal));
+          }
         }
       }
     }
@@ -119,43 +119,48 @@ export async function adjustUserBalance(params: BalanceAdjustmentParams): Promis
     const refCode = referenceId || `TX_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
     const nowISO = new Date().toISOString();
 
+    let pgHandled = false;
     // 1. Atomic PostgreSQL balance update with constraint protection against race conditions
-    try {
-      const pgRes = await queryPostgres(
-        `UPDATE public.profiles
-         SET balance = balance + $1, updated_at = NOW()
-         WHERE (id = $2 OR email = $2) AND (balance + $1) >= 0
-         RETURNING balance`,
-        [delta, userId]
-      );
-      if (pgRes?.rows && pgRes.rows.length > 0) {
-        newBalance = Number(pgRes.rows[0].balance);
-      } else if (delta < 0) {
-        throw new Error('Số dư ví không đủ hoặc tài khoản không tồn tại.');
-      }
+    if (isPostgresConfigured()) {
+      try {
+        const pgRes = await queryPostgres(
+          `UPDATE public.profiles
+           SET balance = balance + $1, updated_at = NOW()
+           WHERE (id::text = $2 OR LOWER(COALESCE(email, '')) = LOWER($2)) AND (balance + $1) >= 0
+           RETURNING balance`,
+          [delta, userId]
+        );
+        if (pgRes?.rows && pgRes.rows.length > 0) {
+          pgHandled = true;
+          newBalance = Number(pgRes.rows[0].balance);
+        } else if (pgRes && delta < 0) {
+          throw new Error('Số dư ví không đủ hoặc tài khoản không tồn tại.');
+        }
 
-      // Insert immutable ledger row in PostgreSQL wallet_transactions
-      await queryPostgres(
-        `INSERT INTO public.wallet_transactions
-          (id, user_id, type, amount, delta, balance_before, balance_after, reference_id, description, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())`,
-        [
-          `tx_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
-          userId,
-          type,
-          Math.abs(delta),
-          delta,
-          currentBalance,
-          newBalance,
-          refCode,
-          description || `Giao dịch ${type}`,
-        ]
-      ).catch(() => {});
-    } catch (pgErr: any) {
-      if (pgErr.message?.includes('Số dư ví không đủ')) {
-        throw pgErr;
+        if (pgHandled) {
+          await queryPostgres(
+            `INSERT INTO public.wallet_transactions
+              (id, user_id, type, amount, delta, balance_before, balance_after, reference_id, description, created_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())`,
+            [
+              crypto.randomUUID(),
+              userId,
+              type,
+              Math.abs(delta),
+              delta,
+              currentBalance,
+              newBalance,
+              refCode,
+              description || `Giao dịch ${type}`,
+            ]
+          ).catch(() => {});
+        }
+      } catch (pgErr: any) {
+        if (pgErr.message?.includes('Số dư ví không đủ')) {
+          throw pgErr;
+        }
+        console.warn('[wallet-service] Postgres atomic balance notice:', pgErr);
       }
-      console.warn('[wallet-service] Postgres atomic balance notice:', pgErr);
     }
 
     // 2. Update local store + immutable Wallet Audit Ledger
@@ -181,7 +186,7 @@ export async function adjustUserBalance(params: BalanceAdjustmentParams): Promis
                deposit_spin_progress = $2,
                total_deposited = COALESCE(total_deposited, 0) + $3,
                updated_at = NOW()
-           WHERE id = $4 OR email = $4`,
+           WHERE id::text = $4 OR LOWER(COALESCE(email, '')) = LOWER($4)`,
           [spinRes.newTickets, spinRes.progress, delta, userId]
         ).catch(() => {});
       } catch (spErr) {
@@ -189,33 +194,34 @@ export async function adjustUserBalance(params: BalanceAdjustmentParams): Promis
       }
     }
 
-    // 3. Update Supabase in background / synchronously if configured
+    // 3. Update Supabase synchronously if configured (safe for Supabase-only deployments!)
     try {
       const supabaseAdmin = getSupabaseAdmin();
       if (supabaseAdmin) {
-        // Update profiles
-        await supabaseAdmin
-          .from('profiles')
-          .update({ balance: newBalance, updated_at: nowISO })
-          .eq('id', userId);
+        const profQuery = isUuid(userId)
+          ? supabaseAdmin.from('profiles').update({ balance: newBalance, updated_at: nowISO }).eq('id', userId)
+          : supabaseAdmin.from('profiles').update({ balance: newBalance, updated_at: nowISO }).ilike('email', userId);
+        const { error: sbProfErr } = await profQuery;
+        if (sbProfErr && !pgHandled && delta < 0) {
+          throw new Error('Không thể cập nhật số dư ví trên Supabase: ' + sbProfErr.message);
+        }
 
-        // Update wallet_accounts if table exists
-        try {
-          await (supabaseAdmin as any)
-            .from('wallet_accounts')
-            .update({ balance: newBalance, updated_at: nowISO })
-            .eq('user_id', userId);
-        } catch {}
+        if (isUuid(userId)) {
+          try {
+            await (supabaseAdmin as any)
+              .from('wallet_accounts')
+              .update({ balance: newBalance, updated_at: nowISO })
+              .eq('user_id', userId);
+          } catch {}
 
-        // Update wallets if table exists
-        try {
-          await (supabaseAdmin as any)
-            .from('wallets')
-            .update({ available_balance: newBalance, balance: newBalance, updated_at: nowISO })
-            .eq('user_id', userId);
-        } catch {}
+          try {
+            await (supabaseAdmin as any)
+              .from('wallets')
+              .update({ available_balance: newBalance, balance: newBalance, updated_at: nowISO })
+              .eq('user_id', userId);
+          } catch {}
+        }
 
-        // Insert into wallet_transactions
         try {
           await supabaseAdmin.from('wallet_transactions').insert({
             user_id: userId,
@@ -231,7 +237,10 @@ export async function adjustUserBalance(params: BalanceAdjustmentParams): Promis
           console.warn('[wallet-service] wallet_transactions insert notice:', txErr);
         }
       }
-    } catch (err) {
+    } catch (err: any) {
+      if (err?.message?.includes('Không thể cập nhật số dư ví')) {
+        throw err;
+      }
       console.warn('[wallet-service] Supabase adjustUserBalance notice:', err);
     }
 

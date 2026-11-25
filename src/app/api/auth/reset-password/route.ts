@@ -108,7 +108,7 @@ export async function POST(req: NextRequest) {
       );
     } catch {}
 
-    serverStore.updateUserPassword(targetEmail, hashed);
+    serverStore.updateUserPassword(targetEmail, hashed, { isPreHashed: true });
 
     try {
       const sbAdmin = getSupabaseAdmin();
@@ -120,10 +120,20 @@ export async function POST(req: NextRequest) {
         if (authUser) {
           await supabaseAdminSafeUpdatePassword(sbAdmin, authUser.id, newPassword);
         }
+        const { data: sbProf } = await sbAdmin
+          .from('profiles')
+          .select('session_version')
+          .ilike('email', targetEmail)
+          .maybeSingle();
+        const nextSv = Number(sbProf?.session_version || 1) + 1;
         await sbAdmin
           .from('profiles')
-          .update({ password_hash: hashed, updated_at: new Date().toISOString() })
-          .eq('email', targetEmail);
+          .update({
+            password_hash: hashed,
+            session_version: nextSv,
+            updated_at: new Date().toISOString(),
+          })
+          .ilike('email', targetEmail);
       }
     } catch {}
 

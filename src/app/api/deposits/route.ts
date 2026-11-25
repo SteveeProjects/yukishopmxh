@@ -1,6 +1,7 @@
+import crypto from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionUser } from '@/lib/session-auth';
-import { ensureDatabaseReady, queryPostgres } from '@/lib/autoMigrate';
+import { ensureDatabaseReady, queryPostgres, isDatabaseConfigured } from '@/lib/autoMigrate';
 import { getSupabaseAdmin } from '@/lib/supabase/admin';
 import { serverStore } from '@/lib/server-store';
 import { getTelegramBotConfig } from '@/lib/system-settings';
@@ -24,7 +25,7 @@ export async function GET(req: NextRequest) {
       const pgRes = sessionUser.role === 'admin'
         ? await queryPostgres(`SELECT * FROM public.deposit_requests ORDER BY created_at DESC LIMIT 50`)
         : await queryPostgres(
-            `SELECT * FROM public.deposit_requests WHERE user_id = $1 OR user_email = $2 ORDER BY created_at DESC LIMIT 50`,
+            `SELECT * FROM public.deposit_requests WHERE user_id::text = $1 OR LOWER(COALESCE(user_email, '')) = LOWER($2) ORDER BY created_at DESC LIMIT 50`,
             [sessionUser.id, sessionUser.email || '']
           );
       if (pgRes?.rows) {
@@ -116,44 +117,79 @@ export async function POST(req: NextRequest) {
     const userName = sessionUser.fullName || sessionUser.username || 'Khách Hàng';
     const userContact = sessionUser.phone || sessionUser.telegramId || sessionUser.email || 'ZaloPay';
 
-    // 1. Record to PostgreSQL
+    // 1. Record to PostgreSQL (valid UUID id)
+    let dbWriteOk = false;
     try {
-      await queryPostgres(
+      const pgDep = await queryPostgres(
         `INSERT INTO public.deposit_requests (id, request_code, user_id, user_email, user_name, user_contact, amount, transfer_code, payment_method, status, telegram_notified, created_at, updated_at)
-         VALUES ($1, $1, $2, $3, $4, $5, $6, $1, 'VIETQR', 'pending', true, now(), now())
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $2, 'VIETQR', 'pending', true, now(), now())
          ON CONFLICT (request_code) DO UPDATE SET updated_at = now()`,
-        [referenceCode, userId, userEmail, userName, userContact, amount]
+        [crypto.randomUUID(), referenceCode, userId, userEmail, userName, userContact, amount]
       );
       await queryPostgres(
         `INSERT INTO public.orders (id, order_code, user_id, user_email, user_name, user_contact, delivery_contact, order_type, service_type, item_name, product_sku, amount, total_amount, quantity, status, paid, telegram_notified, created_at, updated_at)
-         VALUES ($1, $1, $2, $3, $4, $5, $5, 'NAP_VI', 'NAP_VI', $6, 'TOPUP-VIETQR', $7, $7, 1, 'pending', false, true, now(), now())
+         VALUES ($1, $2, $3, $4, $5, $6, $6, 'NAP_VI', 'NAP_VI', $7, 'TOPUP-VIETQR', $8, $8, 1, 'pending', false, true, now(), now())
          ON CONFLICT (order_code) DO UPDATE SET updated_at = now()`,
-        [referenceCode, userId, userEmail, userName, userContact, `Nạp ví ZaloPay VietQR (+${new Intl.NumberFormat('vi-VN').format(amount)} đ)`, amount]
+        [crypto.randomUUID(), referenceCode, userId, userEmail, userName, userContact, `Nạp ví ZaloPay VietQR (+${new Intl.NumberFormat('vi-VN').format(amount)} đ)`, amount]
       );
+      if (pgDep !== null) dbWriteOk = true;
     } catch (pgErr) {
       console.warn('[deposits/POST] Postgres insert notice:', pgErr);
     }
 
-    // 2. Sync to Supabase
+    // 2. Sync to Supabase safely (verify ownership, never blind upsert)
     try {
       const supabaseAdmin = getSupabaseAdmin();
       if (supabaseAdmin) {
-        await supabaseAdmin.from('deposit_requests').upsert({
-          request_code: referenceCode,
-          user_id: userId,
-          user_email: userEmail,
-          user_name: userName,
-          user_contact: userContact,
-          amount,
-          transfer_code: referenceCode,
-          payment_method: 'VIETQR',
-          status: 'pending',
-          telegram_notified: true,
-          created_at: nowISO,
-          updated_at: nowISO,
-        }, { onConflict: 'request_code' });
+        const { data: existingSb } = await supabaseAdmin
+          .from('deposit_requests')
+          .select('user_id, status')
+          .eq('request_code', referenceCode)
+          .maybeSingle();
+        if (
+          existingSb?.user_id &&
+          existingSb.user_id !== userId &&
+          String(sessionUser.role || '').toLowerCase() !== 'admin'
+        ) {
+          return NextResponse.json({ error: 'Bạn không có quyền thao tác mã nạp này.' }, { status: 403 });
+        }
+        if (existingSb && ['approved', 'completed'].includes(String(existingSb.status || '').toLowerCase())) {
+          return NextResponse.json({ success: true, alreadyApproved: true, message: 'Đơn nạp đã được duyệt.' });
+        }
+
+        if (existingSb) {
+          const { error: sbUpdErr } = await supabaseAdmin
+            .from('deposit_requests')
+            .update({ telegram_notified: true, updated_at: nowISO })
+            .eq('request_code', referenceCode)
+            .eq('user_id', existingSb.user_id);
+          if (!sbUpdErr) dbWriteOk = true;
+        } else {
+          const { error: sbErr } = await supabaseAdmin.from('deposit_requests').insert({
+            request_code: referenceCode,
+            user_id: userId,
+            user_email: userEmail,
+            user_name: userName,
+            user_contact: userContact,
+            amount,
+            transfer_code: referenceCode,
+            payment_method: 'VIETQR',
+            status: 'pending',
+            telegram_notified: true,
+            created_at: nowISO,
+            updated_at: nowISO,
+          });
+          if (!sbErr) dbWriteOk = true;
+        }
       }
     } catch {}
+
+    if (isDatabaseConfigured() && !dbWriteOk) {
+      return NextResponse.json(
+        { error: 'Không thể lưu yêu cầu nạp ví vào Database.' },
+        { status: 500 }
+      );
+    }
 
     // 3. Notify Admin Telegram
     try {

@@ -76,7 +76,7 @@ export default function AffiliatePage() {
     setLoading(true);
     setErrorMsg(null);
     try {
-      const res = await fetch('/api/affiliate');
+      const res = await fetch('/api/affiliate', { cache: 'no-store', credentials: 'include' });
       const json = await res.json();
       if (json.success && json.data) {
         setData(json.data);
@@ -152,6 +152,7 @@ export default function AffiliatePage() {
     setBindMsg(null);
     try {
       const res = await fetch('/api/affiliate/bind-referrer', {
+        cache: 'no-store',
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code: inputReferralCode.trim() }),
@@ -189,6 +190,7 @@ export default function AffiliatePage() {
     setActionMsg(null);
     try {
       const res = await fetch('/api/affiliate/action', {
+        cache: 'no-store',
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -244,6 +246,7 @@ export default function AffiliatePage() {
     setActionMsg(null);
     try {
       const res = await fetch('/api/affiliate/action', {
+        cache: 'no-store',
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

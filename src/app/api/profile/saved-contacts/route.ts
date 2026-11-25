@@ -4,6 +4,7 @@ import { serverStore } from '@/lib/server-store';
 import { sanitizePlainText, sanitizeUrlInput } from '@/lib/security-sanitize';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function GET() {
   const sessionUser = await getSessionUser();

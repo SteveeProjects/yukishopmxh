@@ -226,6 +226,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     async (allDevices: boolean) => {
       try {
         await fetch('/api/auth/logout', {
+        cache: 'no-store',
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ allDevices }),

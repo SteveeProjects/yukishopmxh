@@ -31,7 +31,10 @@ function ResetPasswordForm() {
       return;
     }
 
-    fetch(`/api/auth/reset-password?token=${encodeURIComponent(token)}`)
+    fetch(`/api/auth/reset-password?token=${encodeURIComponent(token)}`, {
+      cache: 'no-store',
+      credentials: 'include',
+    })
       .then((res) => res.json())
       .then((data) => {
         if (data.valid) {
@@ -68,6 +71,8 @@ function ResetPasswordForm() {
     try {
       const res = await fetch('/api/auth/reset-password', {
         method: 'POST',
+        cache: 'no-store',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           token,
@@ -253,7 +258,7 @@ function ResetPasswordForm() {
             <span>•</span>
             <Link href="/terms" className="hover:text-sky-300 transition">Điều Khoản</Link>
             <span>•</span>
-            <a href="https://t.me/YukiShopMXH" target="_blank" rel="noopener noreferrer" className="hover:text-sky-300 transition">Hỗ Trợ Admin</a>
+            <a href="https://t.me/YukiIsMe2311" target="_blank" rel="noopener noreferrer" className="hover:text-sky-300 transition">Hỗ Trợ Admin</a>
           </div>
         </div>
       </div>

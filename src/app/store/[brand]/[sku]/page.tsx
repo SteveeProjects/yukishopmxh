@@ -1,9 +1,12 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { BRANDS_CATALOG } from '@/lib/catalog/brands-data';
+import { BRANDS_CATALOG, type BrandInfo, type PackageVariant } from '@/lib/catalog/brands-data';
+import { mergeLiveCatalog } from '@/lib/catalog/merge-live-catalog';
+import { getDeliveryModeMeta } from '@/lib/catalog/delivery-modes';
+import { ADMIN_TELEGRAM_URL } from '@/lib/constants';
 import {
   ArrowLeft,
   CheckCircle2,
@@ -11,9 +14,9 @@ import {
   ShieldCheck,
   Truck,
   AlertTriangle,
-  Wallet,
   ShoppingBag,
-  Info,
+  Send,
+  Tag,
 } from 'lucide-react';
 
 export default function PackageDetailPage() {
@@ -24,9 +27,24 @@ export default function PackageDetailPage() {
   const sku = Array.isArray(params?.sku) ? params.sku[0] : params?.sku;
 
   const [quantity, setQuantity] = useState(1);
+  const [liveBrands, setLiveBrands] = useState<BrandInfo[]>(BRANDS_CATALOG);
 
-  const brand = BRANDS_CATALOG.find((b) => b.slug === brandSlug);
-  const pkg = brand?.packages.find((p) => p.sku === sku);
+  useEffect(() => {
+    fetch('/api/catalog', { cache: 'no-store', credentials: 'include' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.products) {
+          const merged = mergeLiveCatalog(BRANDS_CATALOG, data);
+          if (merged.brands.length > 0) setLiveBrands(merged.brands);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const brand =
+    liveBrands.find((b) => b.slug === brandSlug) ||
+    liveBrands.find((b) => b.packages.some((p) => p.sku === sku));
+  const pkg: PackageVariant | undefined = brand?.packages.find((p) => p.sku === sku);
 
   const formatVND = (val: number) => {
     return new Intl.NumberFormat('vi-VN').format(val) + 'đ';
@@ -47,6 +65,8 @@ export default function PackageDetailPage() {
 
   const subtotal = pkg.price * quantity;
   const isAbnormal = pkg.status === 'NEEDS_REVIEW';
+  const modeMeta = getDeliveryModeMeta(pkg.delivery_mode || pkg.input_type, pkg.sku);
+  const voucherAllowed = pkg.allow_voucher !== false && pkg.allowVoucher !== false && !pkg.sku.includes('API-TOOL-SMS');
 
   const handleProceedCheckout = () => {
     router.push(`/checkout?sku=${pkg.sku}&qty=${quantity}`);
@@ -131,6 +151,42 @@ export default function PackageDetailPage() {
               </ul>
             </div>
 
+            {/* Delivery Mode & Processing Explanation */}
+            <div className="p-4 rounded-xl bg-sky-500/10 border border-sky-500/25 space-y-2 text-xs">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <span className="font-bold text-sky-300 flex items-center gap-1.5">
+                  <Truck className="w-4 h-4" />
+                  <span>Cách Nhận Hàng: {modeMeta.label}</span>
+                </span>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-1 ${
+                  voucherAllowed
+                    ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300'
+                    : 'bg-amber-500/15 border-amber-500/30 text-amber-300'
+                }`}>
+                  <Tag className="w-3 h-3" />
+                  {voucherAllowed ? 'Hỗ trợ Mã Giảm Giá' : 'Không áp dụng Voucher'}
+                </span>
+              </div>
+              <p className="text-slate-300 leading-relaxed">
+                {pkg.custom_input_label ? `${pkg.custom_input_label} — ` : ''}
+                {modeMeta.customerInstruction}
+              </p>
+              <div className="pt-2 border-t border-sky-400/20 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <span className="text-[11px] text-amber-200/90">
+                  Hiện hệ thống chưa tích hợp API cấp đơn tự động — Admin duyệt tay 24/7.
+                </span>
+                <a
+                  href={ADMIN_TELEGRAM_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-500/20 hover:bg-sky-500/30 border border-sky-400/35 text-sky-200 font-bold text-[11px] shrink-0 transition"
+                >
+                  <Send className="w-3 h-3" />
+                  <span>Liên Hệ Admin (@YukiIsMe2311)</span>
+                </a>
+              </div>
+            </div>
+
             {/* Warranty Policy */}
             <div className="p-4 rounded-xl bg-slate-900/90 border border-slate-800 flex items-start gap-3 text-xs text-slate-300">
               <ShieldCheck className="w-5 h-5 text-sky-400 shrink-0 mt-0.5" />
@@ -205,6 +261,7 @@ export default function PackageDetailPage() {
               </div>
             ) : (
               <button
+                type="button"
                 onClick={handleProceedCheckout}
                 className="touch-target w-full py-3 rounded-xl bg-sky-500 hover:bg-sky-400 font-extrabold text-xs text-slate-950 shadow-lg shadow-sky-500/25 transition-colors flex items-center justify-center gap-2"
               >

@@ -12,7 +12,7 @@ export function Footer() {
   );
 
   useEffect(() => {
-    fetch('/api/settings/announcement')
+    fetch('/api/settings/announcement', { cache: 'no-store', credentials: 'include' })
       .then((res) => res.json())
       .then((json) => {
         const customSupport = json?.data?.support_telegram_url || json?.data?.cta_link;

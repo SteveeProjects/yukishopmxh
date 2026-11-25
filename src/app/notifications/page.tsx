@@ -41,7 +41,7 @@ export default function NotificationsPage() {
 
       // 1. Fetch from wallet transactions
       try {
-        const txRes = await fetch('/api/wallet/transactions');
+        const txRes = await fetch('/api/wallet/transactions', { cache: 'no-store', credentials: 'include' });
         const txData = await txRes.json();
         if (txData && Array.isArray(txData.transactions)) {
           for (const tx of txData.transactions.slice(0, 15)) {
@@ -63,7 +63,7 @@ export default function NotificationsPage() {
 
       // 2. Fetch from orders
       try {
-        const ordRes = await fetch('/api/orders');
+        const ordRes = await fetch('/api/orders', { cache: 'no-store', credentials: 'include' });
         const ordData = await ordRes.json();
         if (ordData && Array.isArray(ordData.orders)) {
           for (const ord of ordData.orders.slice(0, 15)) {

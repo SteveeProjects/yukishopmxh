@@ -4,8 +4,10 @@
 // ==============================================================================
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { getSupabaseServiceKey, getSupabaseUrl } from '@/lib/supabase/env';
 
 let _adminClient: SupabaseClient<any> | null = null;
+let _adminCacheKey = '';
 
 /**
  * Lazy-getter for elevated Supabase Admin client.
@@ -17,29 +19,22 @@ export function getSupabaseAdmin(): SupabaseClient<any> | null {
     throw new Error('SECURITY VIOLATION: getSupabaseAdmin() called in browser environment!');
   }
 
-  const supabaseUrl = (
-    process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    process.env.SUPABASE_URL ||
-    ''
-  ).trim();
+  const supabaseUrl = getSupabaseUrl();
+  const serviceRoleKey = getSupabaseServiceKey();
 
-  const serviceRoleKey = (
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.SUPABASE_SERVICE_KEY ||
-    ''
-  ).trim();
-
-  if (!supabaseUrl || !serviceRoleKey || supabaseUrl.includes('placeholder')) {
+  if (!supabaseUrl || !serviceRoleKey) {
     return null;
   }
 
-  if (!_adminClient) {
+  const cacheKey = `${supabaseUrl}::${serviceRoleKey.slice(-12)}`;
+  if (!_adminClient || _adminCacheKey !== cacheKey) {
     _adminClient = createClient<any>(supabaseUrl, serviceRoleKey, {
       auth: {
         persistSession: false,
         autoRefreshToken: false,
       },
     });
+    _adminCacheKey = cacheKey;
   }
 
   return _adminClient;
@@ -128,6 +123,7 @@ export const supabaseAdmin: SupabaseClient<any> = new Proxy({} as any, {
             listUsers: () => Promise.resolve({ data: { users: [] }, error: null }),
             getUserById: () => Promise.resolve({ data: { user: null }, error: null }),
             updateUserById: () => Promise.resolve({ data: { user: null }, error: null }),
+            createUser: () => Promise.resolve({ data: { user: null }, error: new Error('Supabase chưa cấu hình') }),
             deleteUser: () => Promise.resolve({ data: null, error: null }),
           },
         };

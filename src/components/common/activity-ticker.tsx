@@ -16,7 +16,7 @@ export function ActivityTicker() {
   const [activities, setActivities] = useState<ActivityItem[]>([]);
 
   useEffect(() => {
-    fetch('/api/activity')
+    fetch('/api/activity', { cache: 'no-store', credentials: 'include' })
       .then((res) => res.json())
       .then((data) => {
         if (data?.success && Array.isArray(data.activities)) {

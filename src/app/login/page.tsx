@@ -2,11 +2,12 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { LogIn, AlertCircle } from 'lucide-react';
+import { LogIn, AlertCircle, Eye, EyeOff } from 'lucide-react';
 
 export default function LoginPage() {
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -18,6 +19,8 @@ export default function LoginPage() {
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
+        cache: 'no-store',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ identifier, password }),
       });
@@ -55,7 +58,7 @@ export default function LoginPage() {
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-white">Đăng Nhập YUKISHOPMXH</h1>
           <p className="text-xs text-slate-400 mt-1">
-            Đăng nhập bằng Gmail hoặc ID Telegram số
+            Đăng nhập bằng Gmail hoặc ID / @Username Telegram
           </p>
         </div>
 
@@ -69,7 +72,7 @@ export default function LoginPage() {
         <form onSubmit={onSubmit} className="space-y-4">
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
-              Gmail hoặc ID Telegram
+              Gmail hoặc ID / @Username Telegram
             </label>
             <input
               type="text"
@@ -77,7 +80,7 @@ export default function LoginPage() {
               autoComplete="username"
               value={identifier}
               onChange={(e) => setIdentifier(e.target.value)}
-              placeholder="Nhập Gmail hoặc ID Telegram số..."
+              placeholder="Nhập Gmail, ID số hoặc @username Telegram..."
               className="w-full rounded-2xl border border-white/[0.1] bg-black/40 px-4 py-3 text-sm text-white placeholder-slate-500 focus:border-[#0A84FF] focus:outline-none transition"
             />
           </div>
@@ -94,15 +97,25 @@ export default function LoginPage() {
                 Quên mật khẩu?
               </Link>
             </div>
-            <input
-              type="password"
-              required
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Nhập mật khẩu..."
-              className="w-full rounded-2xl border border-white/[0.1] bg-black/40 px-4 py-3 text-sm text-white placeholder-slate-500 focus:border-[#0A84FF] focus:outline-none transition"
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                required
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Nhập mật khẩu..."
+                className="w-full rounded-2xl border border-white/[0.1] bg-black/40 pl-4 pr-11 py-3 text-sm text-white placeholder-slate-500 focus:border-[#0A84FF] focus:outline-none transition"
+              />
+              <button
+                type="button"
+                aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                onClick={() => setShowPassword((v) => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 text-slate-400 hover:text-white transition"
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
           </div>
 
           <button

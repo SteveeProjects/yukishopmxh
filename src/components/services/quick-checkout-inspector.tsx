@@ -8,6 +8,7 @@ import { useAuth } from '@/contexts/auth-context';
 import { calculateVipPrice, calculateVipTier } from '@/lib/vip-tier';
 import { loadOrderDraft, saveOrderDraft, clearOrderDraft } from '@/lib/order-draft';
 import { ADMIN_TELEGRAM_URL } from '@/lib/constants';
+import { getDeliveryModeMeta, normalizeDeliveryMode } from '@/lib/catalog/delivery-modes';
 import { BrandLogo } from '@/components/common/brand-logo';
 import { BrandIcon } from '@/components/BrandIcon';
 import {
@@ -43,7 +44,9 @@ export function QuickCheckoutInspector({
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [quantity, setQuantity] = useState(1);
   const [deliveryContact, setDeliveryContact] = useState('');
-  const [accountCredentials, setAccountCredentials] = useState('');
+  const [accountLogin, setAccountLogin] = useState('');
+  const [accountPassword, setAccountPassword] = useState('');
+  const [accountTwoFa, setAccountTwoFa] = useState('');
   const [notes, setNotes] = useState('');
   const [couponCode, setCouponCode] = useState('');
   const [couponDiscount, setCouponDiscount] = useState(0);
@@ -125,24 +128,19 @@ export function QuickCheckoutInspector({
     currentPkg.warranty_days === 0 ||
     /không bảo hành|kbh/i.test(currentPkg.warranty || '');
 
-  const rawInputType = String(currentPkg.input_type || '').toLowerCase();
-  const isFamilyEmailRequired = Boolean(
-    rawInputType === 'email_only' ||
-    rawInputType === 'google_email' ||
-    currentPkg.sku === 'GEMINI-PRO-24M-FAMILY' ||
-    currentPkg.sku === 'GEMINI-ULTRA-1M-FAMILY'
+  const deliveryMode = normalizeDeliveryMode(
+    currentPkg.delivery_mode || currentPkg.input_type,
+    currentPkg.sku
   );
-
-  const isCredentialsRequired = Boolean(
-    !isFamilyEmailRequired &&
-    (rawInputType === 'credentials' ||
-     rawInputType === 'credentials_pipe' ||
-     (currentPkg.requires_credentials && rawInputType !== 'none' && rawInputType !== 'admin_delivered') ||
-     (currentPkg.sku === 'MUSE-AI-1B-TOKENS' && rawInputType !== 'none' && rawInputType !== 'admin_delivered') ||
-     (currentPkg.sku === 'GEMINI-ULTRA-3M' && rawInputType !== 'none' && rawInputType !== 'admin_delivered'))
-  );
-
-  const isAdminDelivered = !isCredentialsRequired && !isFamilyEmailRequired;
+  const deliveryModeMeta = getDeliveryModeMeta(deliveryMode, currentPkg.sku);
+  const isFamilyEmailRequired = deliveryMode === 'email_only';
+  const isCredentialsRequired = deliveryMode === 'credentials' || deliveryMode === 'credentials_2fa';
+  const isTwoFaRequired = deliveryMode === 'credentials_2fa';
+  const isAdminDelivered = deliveryMode === 'admin_deliver';
+  const isContactAdminMode = deliveryMode === 'contact_admin';
+  const combinedCredentials = isCredentialsRequired
+    ? [accountLogin.trim(), accountPassword.trim(), accountTwoFa.trim()].filter(Boolean).join(' | ')
+    : '';
 
   const isVoucherBlocked = Boolean(
     currentPkg.allow_voucher === false ||
@@ -179,6 +177,8 @@ export function QuickCheckoutInspector({
     try {
       const res = await fetch('/api/coupons/validate', {
         method: 'POST',
+        cache: 'no-store',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           code: clean,
@@ -230,13 +230,12 @@ export function QuickCheckoutInspector({
     }
 
     if (isCredentialsRequired) {
-      const creds = accountCredentials.trim();
-      if (!creds) {
-        setSubmitError('Vui lòng nhập thông tin tài khoản theo định dạng: Tài khoản | Mật khẩu | 2FA (Bắt buộc).');
+      if (!accountLogin.trim() || !accountPassword.trim()) {
+        setSubmitError('Vui lòng nhập đầy đủ Tài khoản và Mật khẩu cần nâng cấp (Bắt buộc).');
         return;
       }
-      if (!creds.includes('|')) {
-        setSubmitError('Định dạng tài khoản không hợp lệ. Vui lòng phân cách bằng dấu gạch đứng (|), ví dụ: email@gmail.com | matkhau123 | 2FA_hoac_tat_2fa');
+      if (isTwoFaRequired && !accountTwoFa.trim()) {
+        setSubmitError('Gói này yêu cầu nhập thêm Mã 2FA / Backup Code để Admin kích hoạt.');
         return;
       }
     }
@@ -255,6 +254,8 @@ export function QuickCheckoutInspector({
     try {
       const res = await fetch('/api/orders/create', {
         method: 'POST',
+        cache: 'no-store',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           order_type: 'PRODUCT',
@@ -264,7 +265,7 @@ export function QuickCheckoutInspector({
           total_amount: rawTotal,
           delivery_contact: deliveryContact.trim(),
           telegram_id: deliveryContact.trim(),
-          account_credentials: isCredentialsRequired ? accountCredentials.trim() : undefined,
+          account_credentials: isCredentialsRequired ? combinedCredentials : undefined,
           notes: notes.trim(),
           coupon_code: !isVoucherBlocked && couponDiscount > 0 ? couponCode.trim().toUpperCase() : '',
         }),
@@ -474,23 +475,69 @@ export function QuickCheckoutInspector({
           </div>
         </div>
 
-        {/* TK | MK | 2FA Credentials Input */}
+        {/* Delivery Mode Explainer */}
+        <div className="p-2.5 rounded-xl bg-sky-500/[0.08] border border-sky-400/25 space-y-1">
+          <div className="flex items-center justify-between gap-2 text-[11px]">
+            <span className="font-bold text-sky-300">📬 {deliveryModeMeta.label}</span>
+          </div>
+          <p className="text-[10px] text-slate-300 leading-relaxed">
+            {currentPkg.custom_input_label || deliveryModeMeta.customerInstruction}
+          </p>
+        </div>
+
+        {/* TK + MK (+ 2FA) Credentials Input */}
         {isCredentialsRequired && (
-          <div className="space-y-1.5 p-3 rounded-xl bg-amber-500/[0.08] border border-amber-500/25">
-            <label className="text-[10px] font-bold text-amber-300 flex items-center justify-between">
+          <div className="space-y-2 p-3 rounded-xl bg-amber-500/[0.08] border border-amber-500/25">
+            <div className="text-[10px] font-bold text-amber-300 flex items-center justify-between">
               <span>Tài khoản cần nâng cấp (Bắt buộc) *</span>
-              <span className="text-[9px] text-amber-400 font-mono">TK | MK | 2FA</span>
-            </label>
+              <span className="text-[9px] text-amber-400 font-mono">
+                {isTwoFaRequired ? 'TK + MK + 2FA' : 'TK + MK'}
+              </span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+              <input
+                type="text"
+                value={accountLogin}
+                onChange={(e) => setAccountLogin(e.target.value)}
+                placeholder="Email / Tài khoản..."
+                className="w-full h-9 px-3 rounded-xl bg-[#07090E] border border-amber-500/30 text-white placeholder-slate-500 font-mono text-[11px] focus:outline-none focus:border-amber-400"
+              />
+              <input
+                type="text"
+                value={accountPassword}
+                onChange={(e) => setAccountPassword(e.target.value)}
+                placeholder="Mật khẩu..."
+                className="w-full h-9 px-3 rounded-xl bg-[#07090E] border border-amber-500/30 text-white placeholder-slate-500 font-mono text-[11px] focus:outline-none focus:border-amber-400"
+              />
+            </div>
             <input
               type="text"
-              value={accountCredentials}
-              onChange={(e) => setAccountCredentials(e.target.value)}
-              placeholder="Tài khoản | Mật khẩu | Mã 2FA (nếu có)..."
+              value={accountTwoFa}
+              onChange={(e) => setAccountTwoFa(e.target.value)}
+              placeholder={
+                isTwoFaRequired
+                  ? 'Mã 2FA / Backup Code (Bắt buộc) *'
+                  : 'Mã 2FA / Backup Code (Không bắt buộc)'
+              }
               className="w-full h-9 px-3 rounded-xl bg-[#07090E] border border-amber-500/30 text-white placeholder-slate-500 font-mono text-[11px] focus:outline-none focus:border-amber-400"
             />
             <p className="text-[10px] text-slate-400 leading-tight">
-              ⚠️ Vui lòng tắt xác minh SĐT/thiết bị hoặc cung cấp kèm mã 2FA để Admin đăng nhập nâng cấp nhanh nhất.
+              ⚠️ Vui lòng tắt xác minh SĐT/thiết bị hoặc cung cấp kèm mã 2FA để Admin kích hoạt nhanh nhất.
             </p>
+          </div>
+        )}
+
+        {isContactAdminMode && (
+          <div className="p-2.5 rounded-xl bg-indigo-500/12 border border-indigo-400/30 text-[11px] text-indigo-200 flex items-center justify-between gap-2">
+            <span>Gói xử lý riêng 1-1 cùng Admin:</span>
+            <a
+              href={ADMIN_TELEGRAM_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-2.5 py-1 rounded-lg bg-sky-500/20 border border-sky-400/40 text-sky-200 font-bold shrink-0"
+            >
+              Nhắn @YukiIsMe2311 ↗
+            </a>
           </div>
         )}
 

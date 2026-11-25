@@ -34,7 +34,7 @@ export function TopDepositorsCard({ className = '' }: { className?: string }) {
   const [showTiersModal, setShowTiersModal] = useState(false);
 
   useEffect(() => {
-    fetch('/api/wallet/top-depositors')
+    fetch('/api/wallet/top-depositors', { cache: 'no-store' })
       .then((res) => res.json())
       .then((data) => {
         if (data.success && Array.isArray(data.topDepositors)) {
@@ -107,6 +107,7 @@ export function TopDepositorsCard({ className = '' }: { className?: string }) {
         </div>
 
         <button
+          type="button"
           onClick={() => setShowTiersModal(!showTiersModal)}
           className="self-start sm:self-auto inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-400/10 hover:bg-amber-400/20 border border-amber-400/30 text-amber-300 text-xs font-semibold transition-all shadow-sm"
         >

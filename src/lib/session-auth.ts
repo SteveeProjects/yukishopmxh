@@ -12,14 +12,20 @@ export async function getSessionUser(): Promise<LocalUser | null> {
     if (sessionCookie) {
       const parsed = JSON.parse(decodeURIComponent(sessionCookie));
       if (parsed?.id) {
-        let freshUser = await findDbUserByIdOrIdentifier(parsed.id);
-        if (!freshUser && parsed.email) {
-          freshUser = await findDbUserByIdOrIdentifier(parsed.email);
+        let freshUser: LocalUser | null = null;
+        let dbLookupFailed = false;
+        try {
+          freshUser = await findDbUserByIdOrIdentifier(parsed.id);
+          if (!freshUser && parsed.email) {
+            freshUser = await findDbUserByIdOrIdentifier(parsed.email);
+          }
+        } catch {
+          dbLookupFailed = true;
         }
 
         if (isSessionPayloadValid(parsed, freshUser)) {
           if (freshUser) return freshUser;
-          if (!isDatabaseConfigured() && String(parsed.role || '').toLowerCase() !== 'admin') {
+          if ((!isDatabaseConfigured() || dbLookupFailed) && String(parsed.role || '').toLowerCase() !== 'admin') {
             return { ...parsed, role: 'user' };
           }
         }

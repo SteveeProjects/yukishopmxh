@@ -3,6 +3,7 @@ import { getAffiliateStats } from '@/lib/affiliate-service';
 import { getSessionUser } from '@/lib/session-auth';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function GET(req: NextRequest) {
   try {

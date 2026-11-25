@@ -19,7 +19,7 @@ export default function StorePage() {
   ]);
 
   useEffect(() => {
-    fetch('/api/catalog')
+    fetch('/api/catalog', { cache: 'no-store', credentials: 'include' })
       .then((res) => res.json())
       .then((data) => {
         if (data?.products && Array.isArray(data.products)) {

@@ -8,6 +8,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { getSupabaseAdmin } from '@/lib/supabase/admin';
 import { ADMIN_EMAIL } from '@/lib/constants';
 import { findDbUserByIdOrIdentifier } from '@/lib/db-persistence';
+import { isUuid } from '@/lib/supabase/env';
 
 export async function verifyAdminRequest(): Promise<boolean> {
   try {
@@ -32,11 +33,12 @@ export async function verifyAdminRequest(): Promise<boolean> {
       } = await supabase.auth.getUser();
 
       if (user?.id) {
-        const { data: prof } = await sbAdmin
-          .from('profiles')
-          .select('role, email')
-          .eq('id', user.id)
-          .maybeSingle();
+        const profRes = isUuid(user.id)
+          ? await sbAdmin.from('profiles').select('role, email').eq('id', user.id).maybeSingle()
+          : user.email
+          ? await sbAdmin.from('profiles').select('role, email').ilike('email', user.email).maybeSingle()
+          : { data: null };
+        const prof = profRes.data;
 
         if (
           String(prof?.role || '').toLowerCase() === 'admin' &&

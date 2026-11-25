@@ -5,6 +5,7 @@ import { getSupabaseAdmin } from '@/lib/supabase/admin';
 import { ensureDatabaseReady, queryPostgres } from '@/lib/autoMigrate';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 function getDayKey(dateInput: string | Date): string {
   const d = new Date(dateInput);

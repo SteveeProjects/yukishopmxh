@@ -29,7 +29,7 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!user) return;
     setLoadingOrders(true);
-    fetch('/api/orders')
+    fetch('/api/orders', { cache: 'no-store', credentials: 'include' })
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data?.orders)) {

@@ -56,7 +56,7 @@ function WarrantyContent() {
     setSearching(true);
     setErrorMsg('');
     try {
-      const res = await fetch(`/api/orders?code=${encodeURIComponent(clean)}`);
+      const res = await fetch(`/api/orders?code=${encodeURIComponent(clean)}`, { cache: 'no-store', credentials: 'include' });
       const data = await res.json();
       if (res.ok && data.orders && data.orders.length > 0) {
         const found = data.orders.find((o: any) => o.order_code === clean || o.id === clean);
@@ -90,6 +90,7 @@ function WarrantyContent() {
     setLoading(true);
     try {
       const res = await fetch('/api/warranty/claim', {
+        cache: 'no-store',
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

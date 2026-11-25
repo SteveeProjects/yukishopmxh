@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
              phone = COALESCE(NULLIF($2, ''), phone),
              telegram_id = COALESCE(NULLIF($3, ''), telegram_id),
              updated_at = NOW()
-         WHERE id = $4 OR email = $5`,
+         WHERE id::text = $4 OR LOWER(COALESCE(email, '')) = LOWER($5)`,
         [fullName, phone, telegramId, sessionUser.id, sessionUser.email || '']
       );
     } catch (pgErr) {
@@ -102,7 +102,7 @@ export async function GET(req: NextRequest) {
     let freshProfile: any = null;
     try {
       const pgRes = await queryPostgres(
-        `SELECT * FROM public.profiles WHERE id = $1 OR email = $2 LIMIT 1`,
+        `SELECT * FROM public.profiles WHERE id::text = $1 OR LOWER(COALESCE(email, '')) = LOWER($2) LIMIT 1`,
         [sessionUser.id, sessionUser.email || '']
       );
       if (pgRes?.rows && pgRes.rows.length > 0) {

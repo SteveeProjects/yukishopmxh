@@ -46,23 +46,23 @@ export async function POST(request: Request) {
       if (isAdmin) {
         await queryPostgres(
           `UPDATE public.deposit_requests SET status = 'cancelled', updated_at = NOW()
-           WHERE (request_code = $1 OR transfer_code = $1 OR id = $1) AND status IN ('pending', 'waiting_confirm')`,
+           WHERE (request_code = $1 OR transfer_code = $1 OR id::text = $1) AND status IN ('pending', 'waiting_confirm')`,
           [referenceCode]
         );
         await queryPostgres(
           `UPDATE public.orders SET status = 'cancelled', updated_at = NOW()
-           WHERE (order_code = $1 OR id = $1) AND status IN ('pending', 'waiting_confirm')`,
+           WHERE (order_code = $1 OR id::text = $1) AND status IN ('pending', 'waiting_confirm')`,
           [referenceCode]
         );
       } else {
         await queryPostgres(
           `UPDATE public.deposit_requests SET status = 'cancelled', updated_at = NOW()
-           WHERE (request_code = $1 OR transfer_code = $1 OR id = $1) AND user_id = $2 AND status IN ('pending', 'waiting_confirm')`,
+           WHERE (request_code = $1 OR transfer_code = $1 OR id::text = $1) AND user_id::text = $2 AND status IN ('pending', 'waiting_confirm')`,
           [referenceCode, sessionUser.id]
         );
         await queryPostgres(
           `UPDATE public.orders SET status = 'cancelled', updated_at = NOW()
-           WHERE (order_code = $1 OR id = $1) AND user_id = $2 AND status IN ('pending', 'waiting_confirm')`,
+           WHERE (order_code = $1 OR id::text = $1) AND user_id::text = $2 AND status IN ('pending', 'waiting_confirm')`,
           [referenceCode, sessionUser.id]
         );
       }

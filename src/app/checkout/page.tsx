@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/auth-context';
 import { BRANDS_CATALOG, PackageVariant } from '@/lib/catalog/brands-data';
+import { getDeliveryModeMeta, normalizeDeliveryMode } from '@/lib/catalog/delivery-modes';
 import { PreOrderModal } from '@/components/common/pre-order-modal';
 import { calculateVipTier, isVipDiscountApplicable } from '@/lib/vip';
 import { loadOrderDraft, saveOrderDraft, clearOrderDraft } from '@/lib/order-draft';
@@ -68,7 +69,7 @@ function CheckoutContent() {
   const [pkg, setPkg] = useState<PackageVariant>(initialPkg);
 
   useEffect(() => {
-    fetch('/api/catalog')
+    fetch('/api/catalog', { cache: 'no-store', credentials: 'include' })
       .then((res) => res.json())
       .then((data) => {
         if (data.products) {
@@ -78,18 +79,22 @@ function CheckoutContent() {
               sku: found.sku,
               name: found.name,
               price: Number(found.sell_price),
-              originalPrice: Number(found.originalPrice || found.sell_price * 1.5),
+              originalPrice: Number(found.original_price || found.originalPrice || found.sell_price * 1.5),
               duration: 'Theo Gói',
-              durationDays: 30,
+              durationDays: found.warranty_days ?? 30,
               status: found.status,
-              fulfillmentMode: 'MANUAL',
+              fulfillmentMode: found.fulfillment_mode === 'AUTO' ? 'AUTO' : 'MANUAL',
+              fulfillment_mode: found.fulfillment_mode || 'MANUAL',
               warranty: found.description || 'Bảo hành đầy đủ kỳ hạn',
+              warranty_days: found.warranty_days,
               benefits: ['Bản quyền chính thức'],
               usageConditions: ['Tuân thủ điều khoản'],
               stock: Number(found.stock || 50),
               allow_voucher: found.allow_voucher,
               allowVoucher: found.allow_voucher,
-              input_type: found.input_type,
+              input_type: found.delivery_mode || found.input_type,
+              delivery_mode: found.delivery_mode || found.input_type,
+              custom_input_label: found.custom_input_label,
               requires_credentials: found.requires_credentials,
             });
           }
@@ -114,7 +119,9 @@ function CheckoutContent() {
   const [telegramId, setTelegramId] = useState('');
   const [zaloPhone, setZaloPhone] = useState('');
   const [googleEmail, setGoogleEmail] = useState('');
-  const [accountCredentials, setAccountCredentials] = useState('');
+  const [accountLogin, setAccountLogin] = useState('');
+  const [accountPassword, setAccountPassword] = useState('');
+  const [accountTwoFa, setAccountTwoFa] = useState('');
   const [customerNotes, setCustomerNotes] = useState('');
   const [resolvedUser, setResolvedUser] = useState<{
     username: string | null;
@@ -160,6 +167,7 @@ function CheckoutContent() {
     setResolvingUser(true);
     const timer = setTimeout(() => {
       fetch('/api/telegram/resolve-user', {
+        cache: 'no-store',
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ telegramId: cleanId }),
@@ -187,24 +195,16 @@ function CheckoutContent() {
     return () => clearTimeout(timer);
   }, [telegramId]);
 
-  const rawInputType = String(pkg.input_type || '').toLowerCase();
-  const isFamilyEmailRequired = Boolean(
-    rawInputType === 'email_only' ||
-    rawInputType === 'google_email' ||
-    pkg.sku === 'GEMINI-PRO-24M-FAMILY' ||
-    pkg.sku === 'GEMINI-ULTRA-1M-FAMILY'
-  );
-
-  const isCredentialsRequired = Boolean(
-    !isFamilyEmailRequired &&
-    (rawInputType === 'credentials' ||
-     rawInputType === 'credentials_pipe' ||
-     (pkg.requires_credentials && rawInputType !== 'none' && rawInputType !== 'admin_delivered') ||
-     (pkg.sku === 'MUSE-AI-1B-TOKENS' && rawInputType !== 'none' && rawInputType !== 'admin_delivered') ||
-     (pkg.sku === 'GEMINI-ULTRA-3M' && rawInputType !== 'none' && rawInputType !== 'admin_delivered'))
-  );
-
-  const isAdminDelivered = !isCredentialsRequired && !isFamilyEmailRequired;
+  const deliveryMode = normalizeDeliveryMode(pkg.delivery_mode || pkg.input_type, pkg.sku);
+  const deliveryModeMeta = getDeliveryModeMeta(deliveryMode, pkg.sku);
+  const isFamilyEmailRequired = deliveryMode === 'email_only';
+  const isCredentialsRequired = deliveryMode === 'credentials' || deliveryMode === 'credentials_2fa';
+  const isTwoFaRequired = deliveryMode === 'credentials_2fa';
+  const isAdminDelivered = deliveryMode === 'admin_deliver';
+  const isContactAdminMode = deliveryMode === 'contact_admin';
+  const combinedCredentials = isCredentialsRequired
+    ? [accountLogin.trim(), accountPassword.trim(), accountTwoFa.trim()].filter(Boolean).join(' | ')
+    : '';
 
   const isVoucherBlocked = Boolean(
     pkg.allow_voucher === false ||
@@ -236,6 +236,7 @@ function CheckoutContent() {
     setValidatingCoupon(true);
     try {
       const res = await fetch('/api/coupons/validate', {
+        cache: 'no-store',
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -292,13 +293,12 @@ function CheckoutContent() {
     }
 
     if (isCredentialsRequired) {
-      const creds = accountCredentials.trim();
-      if (!creds) {
-        setOrderError('Vui lòng nhập thông tin tài khoản theo định dạng: Tài khoản | Mật khẩu | 2FA (Bắt buộc)!');
+      if (!accountLogin.trim() || !accountPassword.trim()) {
+        setOrderError('Vui lòng nhập đầy đủ Tài khoản và Mật khẩu cần nâng cấp (Bắt buộc)!');
         return;
       }
-      if (!creds.includes('|')) {
-        setOrderError('Định dạng tài khoản không hợp lệ. Vui lòng phân cách bằng dấu gạch đứng (|), ví dụ: email@gmail.com | matkhau123 | 2FA_hoac_tat_2fa');
+      if (isTwoFaRequired && !accountTwoFa.trim()) {
+        setOrderError('Gói này yêu cầu nhập thêm Mã 2FA / Backup Code!');
         return;
       }
     }
@@ -328,12 +328,9 @@ function CheckoutContent() {
       return;
     }
 
-    if (isCredentialsRequired) {
-      const creds = accountCredentials.trim();
-      if (!creds || !creds.includes('|')) {
-        setOrderError('Vui lòng nhập định dạng Tài khoản | Mật khẩu | 2FA (phân cách bằng dấu |)!');
-        return;
-      }
+    if (isCredentialsRequired && (!accountLogin.trim() || !accountPassword.trim())) {
+      setOrderError('Vui lòng nhập đầy đủ Tài khoản và Mật khẩu!');
+      return;
     }
 
     const contactStr = [
@@ -348,6 +345,8 @@ function CheckoutContent() {
     try {
       const response = await fetch('/api/orders/create', {
         method: 'POST',
+        cache: 'no-store',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sku: pkg.sku,
@@ -359,7 +358,7 @@ function CheckoutContent() {
           telegramId: cleanTele || undefined,
           zalo_phone: cleanZalo || undefined,
           zaloPhone: cleanZalo || undefined,
-          account_credentials: isCredentialsRequired ? accountCredentials.trim() : undefined,
+          account_credentials: isCredentialsRequired ? combinedCredentials : undefined,
           notes: customerNotes.trim() || undefined,
           delivery_contact: contactStr,
           customerContact: contactStr,
@@ -552,10 +551,9 @@ function CheckoutContent() {
                 <UserCheck className="w-4 h-4 text-cyan-400" />
                 <h3 className="font-bold text-sm text-white">📬 Thông Tin Nhận Đơn Bàn Giao (Admin Duyệt Tay)</h3>
               </div>
-              <p className="text-[11px] text-slate-400 leading-relaxed">
-                {isFamilyEmailRequired
-                  ? 'Bắt buộc nhập đúng Email Google để Admin gửi lời mời tham gia nhóm Family kích hoạt dịch vụ.'
-                  : 'Bắt buộc nhập ít nhất ID Telegram hoặc Số Zalo để Admin đối chiếu và bàn giao tài khoản / gói cước chuẩn xác.'}
+              <p className="text-[11px] text-slate-300 leading-relaxed bg-sky-500/10 border border-sky-500/25 rounded-xl p-3">
+                <strong className="text-sky-300">{deliveryModeMeta.label}:</strong>{' '}
+                {pkg.custom_input_label || deliveryModeMeta.customerInstruction}
               </p>
 
               {/* Google Family Email */}
@@ -572,30 +570,66 @@ function CheckoutContent() {
                     className="w-full min-h-[44px] px-3.5 py-2.5 rounded-xl bg-slate-900 border border-sky-500/40 text-xs text-white font-mono focus:outline-none focus:border-sky-400 transition"
                   />
                   <p className="text-[11px] text-slate-400 leading-relaxed">
-                    ⚠️ Email nhận link mời tham gia nhóm Family Google One / Gemini Pro.
+                    ⚠️ Email nhận link mời tham gia nhóm Family Google One / Gemini Ultra.
                   </p>
                 </div>
               )}
 
-              {/* TK | MK | 2FA Credentials Input */}
+              {/* TK + MK (+ 2FA) Credentials Inputs */}
               {isCredentialsRequired && (
-                <div className="space-y-1.5 p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30">
+                <div className="space-y-2.5 p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30">
                   <div className="flex items-center justify-between">
                     <label className="text-xs font-bold text-amber-300">
                       Tài khoản cần nâng cấp (Bắt buộc) *
                     </label>
-                    <span className="text-[10px] text-amber-400 font-mono">TK | MK | 2FA</span>
+                    <span className="text-[10px] text-amber-400 font-mono">
+                      {isTwoFaRequired ? 'TK + MK + 2FA' : 'TK + MK'}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <input
+                      type="text"
+                      placeholder="Email / Tài khoản..."
+                      value={accountLogin}
+                      onChange={(e) => setAccountLogin(e.target.value)}
+                      className="w-full min-h-[44px] px-3.5 py-2.5 rounded-xl bg-slate-900 border border-amber-500/40 text-xs text-white font-mono focus:outline-none focus:border-amber-400 transition"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Mật khẩu..."
+                      value={accountPassword}
+                      onChange={(e) => setAccountPassword(e.target.value)}
+                      className="w-full min-h-[44px] px-3.5 py-2.5 rounded-xl bg-slate-900 border border-amber-500/40 text-xs text-white font-mono focus:outline-none focus:border-amber-400 transition"
+                    />
                   </div>
                   <input
                     type="text"
-                    placeholder="Tài khoản | Mật khẩu | Mã 2FA (nếu có)..."
-                    value={accountCredentials}
-                    onChange={(e) => setAccountCredentials(e.target.value)}
+                    placeholder={
+                      isTwoFaRequired
+                        ? 'Mã 2FA / Backup Code (Bắt buộc) *'
+                        : 'Mã 2FA / Backup Code (Không bắt buộc)'
+                    }
+                    value={accountTwoFa}
+                    onChange={(e) => setAccountTwoFa(e.target.value)}
                     className="w-full min-h-[44px] px-3.5 py-2.5 rounded-xl bg-slate-900 border border-amber-500/40 text-xs text-white font-mono focus:outline-none focus:border-amber-400 transition"
                   />
                   <p className="text-[11px] text-slate-400 leading-relaxed">
-                    ⚠️ Vui lòng phân cách bằng dấu gạch đứng (<code>|</code>) và tắt xác minh SĐT/thiết bị hoặc cung cấp 2FA để Admin kích hoạt nhanh.
+                    ⚠️ Vui lòng tắt xác minh SĐT/thiết bị hoặc cung cấp mã 2FA để Admin kích hoạt nhanh.
                   </p>
+                </div>
+              )}
+
+              {isContactAdminMode && (
+                <div className="p-3.5 rounded-xl bg-indigo-500/12 border border-indigo-400/30 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                  <span className="text-indigo-200">Gói nâng chay / xử lý riêng trực tiếp cùng Admin:</span>
+                  <a
+                    href={ADMIN_TELEGRAM_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3 py-1.5 rounded-xl btn-ios-blue text-xs font-bold shrink-0 text-center"
+                  >
+                    Nhắn Telegram @YukiIsMe2311 ↗
+                  </a>
                 </div>
               )}
 
@@ -809,6 +843,7 @@ function CheckoutContent() {
 
               {/* Confirm Payment Action */}
               <button
+                type="button"
                 onClick={onStartCheckout}
                 disabled={isProcessing || (wallet?.balance || 0) < finalTotal}
                 className="touch-target w-full py-3.5 rounded-xl btn-ios-white font-bold text-xs text-slate-950 shadow transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"

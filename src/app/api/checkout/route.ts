@@ -6,6 +6,7 @@ import { NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { checkoutPayloadSchema } from '@/lib/validations/checkout';
+import { queryPostgres } from '@/lib/autoMigrate';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -175,15 +176,67 @@ export async function POST(request: Request) {
       );
     }
 
-    // Execute Atomic Deduction & Order Creation
-    const newBalance = currentBalance - finalAmount;
+    // Execute Atomic Conditional Deduction before Ledger & Order Creation
     const orderCode = `YUKI4-ORD-${Math.floor(100000 + Math.random() * 900000)}`;
+    let newBalance = currentBalance - finalAmount;
+    let deductedOk = false;
 
-    // 1. Update wallet
-    await (supabaseAdmin as any)
-      .from('wallet_accounts')
-      .update({ balance: newBalance, updated_at: new Date().toISOString() })
-      .eq('user_id', userId);
+    try {
+      const pgDeduct = await queryPostgres(
+        `UPDATE public.wallet_accounts
+         SET balance = balance - $1, updated_at = NOW()
+         WHERE user_id::text = $2
+           AND COALESCE(is_locked, false) = false
+           AND balance >= $1
+         RETURNING balance`,
+        [finalAmount, userId]
+      );
+      if (pgDeduct?.rows && pgDeduct.rows.length > 0) {
+        newBalance = Number(pgDeduct.rows[0].balance ?? newBalance);
+        deductedOk = true;
+      } else if (pgDeduct !== null) {
+        return NextResponse.json(
+          {
+            success: false,
+            data: null,
+            error: {
+              code: 'INSUFFICIENT_FUNDS',
+              message: 'Số dư ví không đủ hoặc ví đã thay đổi',
+              details: { required: finalAmount, available: currentBalance },
+            },
+            timestamp: new Date().toISOString(),
+          },
+          { status: 400 }
+        );
+      }
+    } catch {}
+
+    if (!deductedOk) {
+      const { data: sbUpdated, error: sbBalErr } = await (supabaseAdmin as any)
+        .from('wallet_accounts')
+        .update({ balance: newBalance, updated_at: new Date().toISOString() })
+        .eq('user_id', userId)
+        .eq('balance', currentBalance)
+        .gte('balance', finalAmount)
+        .select('balance')
+        .maybeSingle();
+
+      if (sbBalErr || !sbUpdated) {
+        return NextResponse.json(
+          {
+            success: false,
+            data: null,
+            error: {
+              code: 'CONCURRENT_BALANCE_CONFLICT',
+              message: 'Giao dịch ví bị xung đột hoặc số dư không đủ. Vui lòng thử lại.',
+            },
+            timestamp: new Date().toISOString(),
+          },
+          { status: 409 }
+        );
+      }
+      newBalance = Number((sbUpdated as any).balance ?? newBalance);
+    }
 
     // 2. Insert into Immutable Ledger
     await (supabaseAdmin as any).from('wallet_transactions').insert({
@@ -197,7 +250,7 @@ export async function POST(request: Request) {
     });
 
     // 3. Create Order
-    const { data: newOrder } = await (supabaseAdmin as any)
+    const { data: newOrder, error: orderInsertErr } = await (supabaseAdmin as any)
       .from('orders')
       .insert({
         order_code: orderCode,
@@ -210,6 +263,18 @@ export async function POST(request: Request) {
       })
       .select('id')
       .single();
+
+    if (orderInsertErr || !newOrder) {
+      return NextResponse.json(
+        {
+          success: false,
+          data: null,
+          error: { code: 'ORDER_CREATE_FAILED', message: 'Không thể lưu đơn hàng vào cơ sở dữ liệu.' },
+          timestamp: new Date().toISOString(),
+        },
+        { status: 500 }
+      );
+    }
 
     // 4. Create Order Items Snapshot
     if (newOrder) {

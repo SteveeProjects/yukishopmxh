@@ -101,7 +101,7 @@ export default function HomePage() {
       }
     } catch {}
 
-    fetch('/api/settings/announcement')
+    fetch('/api/settings/announcement', { cache: 'no-store', credentials: 'include' })
       .then((res) => res.json())
       .then((json) => {
         if (json?.config) setAnnouncement(json.config);
@@ -113,7 +113,7 @@ export default function HomePage() {
       })
       .catch(() => {});
 
-    fetch('/api/catalog')
+    fetch('/api/catalog', { cache: 'no-store', credentials: 'include' })
       .then((res) => res.json())
       .then((data) => {
         if (data?.products && Array.isArray(data.products)) {

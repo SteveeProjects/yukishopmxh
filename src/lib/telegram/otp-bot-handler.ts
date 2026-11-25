@@ -364,12 +364,12 @@ export async function processTelegramOtpUpdate(update: any) {
     try {
       await queryPostgres(
         `UPDATE public.profiles SET password_hash = $1, session_version = COALESCE(session_version, 1) + 1, updated_at = NOW()
-         WHERE id = $2 OR LOWER(email) = LOWER($3)`,
+         WHERE id::text = $2 OR LOWER(email) = LOWER($3)`,
         [hashed, targetUserId || '', targetEmail]
       );
     } catch {}
 
-    serverStore.updateUserPassword(targetEmail || targetUserId, hashed);
+    serverStore.updateUserPassword(targetEmail || targetUserId, hashed, { isPreHashed: true });
 
     const sbAdmin = getSupabaseAdmin();
     if (sbAdmin) {
@@ -385,10 +385,20 @@ export async function processTelegramOtpUpdate(update: any) {
             await sbAdmin.auth.admin.updateUserById(sbUser.id, { password: text });
           }
         }
+        const { data: sbProf } = await sbAdmin
+          .from('profiles')
+          .select('session_version')
+          .ilike('email', targetEmail)
+          .maybeSingle();
+        const nextSv = Number(sbProf?.session_version || 1) + 1;
         await sbAdmin
           .from('profiles')
-          .update({ password_hash: hashed, updated_at: new Date().toISOString() })
-          .eq('email', targetEmail);
+          .update({
+            password_hash: hashed,
+            session_version: nextSv,
+            updated_at: new Date().toISOString(),
+          })
+          .ilike('email', targetEmail);
       } catch (sbErr: any) {
         console.warn('[otp-bot] Supabase password sync notice:', sbErr.message);
       }

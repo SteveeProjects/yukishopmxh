@@ -5,6 +5,7 @@ import { verifySecretHeader } from '@/lib/webhook-security';
 import { syncTelegramBotsTwoWay, resolvePublicOrigin } from '@/lib/telegram/sync-service';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function GET(req: NextRequest) {
   try {
@@ -44,6 +45,7 @@ export async function GET(req: NextRequest) {
       message: 'Toàn bộ Webhook Telegram 2 chiều & Bot Commands đã được đồng bộ thành công!',
       data: {
         ...syncRes,
+        webhookSecret: syncRes.webhookSecret ? `••••${syncRes.webhookSecret.slice(-4)}` : '',
         macroDroid: {
           targetUrl: `${origin}/api/webhook/macrodroid`,
           secretHeader: 'x-macrodroid-secret',

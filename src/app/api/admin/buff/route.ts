@@ -11,6 +11,7 @@ import {
 } from '@/lib/catalog/buff-badges';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function GET() {
   const isAdmin = await verifyAdminRequest();

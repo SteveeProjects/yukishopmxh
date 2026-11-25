@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase/admin';
 import { ensureDatabaseReady, queryPostgres } from '@/lib/autoMigrate';
@@ -427,7 +428,7 @@ async function handleMacroDroidWebhook(req: Request, method: 'GET' | 'POST') {
         const pgOrd = await queryPostgres(
           `SELECT id, order_code, user_id, total_amount, amount, status, paid, created_at
            FROM public.orders
-           WHERE LOWER(order_code) = ANY($1::text[]) OR LOWER(id) = ANY($1::text[])
+           WHERE LOWER(order_code) = ANY($1::text[]) OR LOWER(id::text) = ANY($1::text[])
            ORDER BY created_at DESC LIMIT 1`,
           [lowerArr]
         );
@@ -638,6 +639,26 @@ async function handleMacroDroidWebhook(req: Request, method: 'GET' | 'POST') {
 
   const finalOrderCode = matchedRecord.order_code || matchedRecord.request_code || matchedRecord.id;
   const currentStatus = String(matchedRecord.status || 'pending').toLowerCase();
+  const txFingerprint = crypto
+    .createHash('sha256')
+    .update(`${receivedAmount}|${String(finalOrderCode).toUpperCase()}|${fullMsg.trim().slice(0, 180)}`)
+    .digest('hex');
+
+  try {
+    const pgFp = await queryPostgres(
+      `SELECT id, request_code FROM public.deposit_requests WHERE fingerprint = $1 LIMIT 1`,
+      [txFingerprint]
+    );
+    if (pgFp?.rows?.[0]) {
+      return NextResponse.json({
+        success: true,
+        alreadyProcessed: true,
+        message: `Giao dịch ${finalOrderCode} trùng fingerprint đã được xử lý trước đó.`,
+        orderId: pgFp.rows[0].id,
+        orderCode: pgFp.rows[0].request_code || finalOrderCode,
+      });
+    }
+  } catch {}
 
   if (['completed', 'approved'].includes(currentStatus) || matchedRecord.paid === true) {
     await appendMacroDroidLogDb({
@@ -701,16 +722,20 @@ async function handleMacroDroidWebhook(req: Request, method: 'GET' | 'POST') {
   try {
     const pgClaimDep = await queryPostgres(
       `UPDATE public.deposit_requests
-       SET status = 'approved', approved_by = 'AUTO_MACRODROID', approved_at = NOW(), updated_at = NOW()
-       WHERE (request_code = $1 OR transfer_code = $1 OR id = $1)
+       SET status = 'approved',
+           approved_by = 'AUTO_MACRODROID',
+           approved_at = NOW(),
+           fingerprint = COALESCE(fingerprint, $2),
+           updated_at = NOW()
+       WHERE (request_code = $1 OR transfer_code = $1 OR id::text = $1)
          AND status IN ('pending', 'waiting_confirm')
        RETURNING id`,
-      [finalOrderCode]
+      [finalOrderCode, txFingerprint]
     );
     const pgClaimOrd = await queryPostgres(
       `UPDATE public.orders
        SET status = 'completed', paid = true, approved_by = 'AUTO_MACRODROID', updated_at = NOW()
-       WHERE (order_code = $1 OR id = $1)
+       WHERE (order_code = $1 OR id::text = $1)
          AND status IN ('pending', 'waiting_confirm')
        RETURNING id`,
       [finalOrderCode]

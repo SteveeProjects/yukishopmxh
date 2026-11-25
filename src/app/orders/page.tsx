@@ -44,6 +44,8 @@ export default function OrdersPage() {
     try {
       const res = await fetch('/api/orders/lookup', {
         method: 'POST',
+        cache: 'no-store',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ orderCode: lookupCode.trim(), contact: lookupContact.trim() }),
       });
@@ -63,7 +65,7 @@ export default function OrdersPage() {
   const fetchOrders = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/orders');
+      const res = await fetch('/api/orders', { cache: 'no-store', credentials: 'include' });
       if (res.ok) {
         const data = await res.json();
         if (data.orders) setOrders(data.orders);
@@ -357,7 +359,23 @@ export default function OrdersPage() {
                   </div>
                 </div>
 
-                {/* Delivery Info Box with 1-Click Copy */}
+                {/* Delivery Info & Admin Note Boxes */}
+                {order.admin_note && (
+                  <div className="p-3 rounded-xl bg-amber-500/12 border border-amber-500/30 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="text-amber-200 leading-relaxed">
+                      <strong className="text-amber-300">💬 Thông báo từ Admin:</strong> {order.admin_note}
+                    </div>
+                    <a
+                      href={ADMIN_TELEGRAM_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3 py-1.5 rounded-xl bg-sky-500/20 hover:bg-sky-500/30 border border-sky-400/35 text-sky-200 font-bold text-[11px] flex items-center gap-1.5 shrink-0"
+                    >
+                      <Send className="w-3 h-3" />
+                      <span>Gửi 2FA / Nhắn Admin</span>
+                    </a>
+                  </div>
+                )}
                 {isCompleted && (
                   <div>
                     {order.delivery_info === 'CONTACT_ADMIN' ? (

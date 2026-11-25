@@ -44,6 +44,7 @@ export function Modal({ isOpen, onClose, title, description, children, footer }:
             {description && <p className="text-xs text-muted-foreground mt-0.5">{description}</p>}
           </div>
           <button
+            type="button"
             onClick={onClose}
             className="touch-target p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-surface-hover transition-colors"
             aria-label="Đóng hộp thoại"

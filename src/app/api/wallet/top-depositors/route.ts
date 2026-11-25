@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import { queryPostgres, ensureDatabaseReady } from '@/lib/autoMigrate';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 function maskName(raw: string): string {
   const s = String(raw || '').trim();

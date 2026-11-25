@@ -19,7 +19,7 @@ export async function POST(req: Request) {
         serverStore.bumpUserSessionVersion(currentUser.id);
         const nextSv = Number(currentUser.sessionVersion || 1) + 1;
         await queryPostgres(
-          `UPDATE public.profiles SET session_version = COALESCE(session_version, 1) + 1, updated_at = NOW() WHERE id = $1`,
+          `UPDATE public.profiles SET session_version = COALESCE(session_version, 1) + 1, updated_at = NOW() WHERE id::text = $1`,
           [currentUser.id]
         ).catch(() => {});
         const sbAdmin = getSupabaseAdmin();

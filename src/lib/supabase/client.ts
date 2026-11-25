@@ -3,20 +3,11 @@
 // ==============================================================================
 
 import { createBrowserClient } from '@supabase/ssr';
-import type { Database } from '@/types/database';
+import { getSupabaseAnonKey, getSupabaseUrl } from '@/lib/supabase/env';
 
 export function getSupabaseBrowserClient() {
-  const supabaseUrl = (
-    process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    process.env.SUPABASE_URL ||
-    'https://placeholder.supabase.co'
-  ).trim();
-
-  const supabaseAnonKey = (
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-    process.env.SUPABASE_ANON_KEY ||
-    'placeholder-anon-key'
-  ).trim();
+  const supabaseUrl = getSupabaseUrl() || 'https://placeholder.supabase.co';
+  const supabaseAnonKey = getSupabaseAnonKey() || 'placeholder-anon-key';
 
   return createBrowserClient<any>(supabaseUrl, supabaseAnonKey);
 }

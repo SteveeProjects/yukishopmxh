@@ -5,6 +5,7 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import { adjustUserBalance } from '@/lib/wallet-service';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function GET() {
   try {

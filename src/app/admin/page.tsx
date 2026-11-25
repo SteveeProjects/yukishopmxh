@@ -27,7 +27,7 @@ export default function AdminDashboardPage() {
   const [togglingSleep, setTogglingSleep] = useState(false);
 
   useEffect(() => {
-    fetch('/api/settings/announcement')
+    fetch('/api/settings/announcement', { cache: 'no-store', credentials: 'include' })
       .then((res) => res.json())
       .then((json) => {
         if (json?.systemConfig) {
@@ -43,6 +43,8 @@ export default function AdminDashboardPage() {
     try {
       const res = await fetch('/api/admin/settings/announcement', {
         method: 'POST',
+        cache: 'no-store',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ systemConfig: { sleep_mode: nextState } }),
       });

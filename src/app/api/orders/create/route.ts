@@ -1,13 +1,15 @@
+import crypto from 'crypto';
 import { NextResponse } from 'next/server';
 import { serverStore } from '@/lib/server-store';
 import { getSupabaseAdmin } from '@/lib/supabase/admin';
-import { queryPostgres, autoEnsureTables } from '@/lib/db';
+import { queryPostgres, autoEnsureTables, isDatabaseConfigured } from '@/lib/db';
 import { getTelegramBotConfig, getSystemSetting } from '@/lib/system-settings';
 import { adjustUserBalance } from '@/lib/wallet-service';
 import { getSessionUser } from '@/lib/session-auth';
 import { sanitizePlainText, sanitizeUrlInput } from '@/lib/security-sanitize';
 import { calculateVipTier, isVipDiscountApplicable } from '@/lib/vip-tier';
 import { getUnifiedCatalogData } from '@/lib/catalog/server-catalog';
+import { normalizeDeliveryMode } from '@/lib/catalog/delivery-modes';
 import { BUFF_SERVICES } from '@/lib/catalog/buff-data';
 import { loadBuffOverrides } from '@/lib/buff-store';
 
@@ -275,29 +277,31 @@ export async function POST(req: Request) {
     const overrides = serverStore.loadCatalogOverrides();
     const liveOverride = overrides.updatedItems?.[sku] || overrides.customItems?.find((c: any) => c.sku === sku);
 
-    let resolvedInputType = String(serverProduct?.input_type || liveOverride?.input_type || '').toLowerCase();
-    if (!resolvedInputType) {
-      if (sku === 'GEMINI-PRO-24M-FAMILY' || sku === 'GEMINI-ULTRA-1M-FAMILY' || /Add Family|Family/i.test(itemName)) {
-        resolvedInputType = 'email_only';
-      } else if (sku === 'MUSE-AI-1B-TOKENS' || sku === 'GEMINI-ULTRA-3M' || Boolean(serverProduct?.requires_credentials)) {
-        resolvedInputType = 'credentials';
-      } else {
-        resolvedInputType = 'none';
+    const deliveryMode = normalizeDeliveryMode(
+      serverProduct?.delivery_mode ||
+        serverProduct?.input_type ||
+        liveOverride?.delivery_mode ||
+        liveOverride?.input_type,
+      sku
+    );
+
+    if (deliveryMode === 'credentials' || deliveryMode === 'credentials_2fa') {
+      if (!rawCredentials || !rawCredentials.includes('|')) {
+        return NextResponse.json(
+          {
+            error:
+              deliveryMode === 'credentials_2fa'
+                ? 'Gói này yêu cầu nhập đầy đủ: Tài khoản | Mật khẩu | Mã 2FA / Backup Code.'
+                : 'Gói này yêu cầu nhập đầy đủ: Tài khoản | Mật khẩu.',
+          },
+          { status: 400 }
+        );
       }
     }
 
-    const isFamilyEmailRequired = resolvedInputType === 'email_only';
-
-    if (resolvedInputType === 'credentials' && (!rawCredentials || !rawCredentials.includes('|'))) {
+    if (deliveryMode === 'email_only' && (!deliveryContact.includes('@') || !deliveryContact.includes('.'))) {
       return NextResponse.json(
-        { error: 'Gói này yêu cầu nhập thông tin tài khoản đăng nhập theo định dạng: Tài khoản | Mật khẩu | 2FA (phân cách bằng dấu |).' },
-        { status: 400 }
-      );
-    }
-
-    if (resolvedInputType === 'email_only' && (!deliveryContact.includes('@') || !deliveryContact.includes('.'))) {
-      return NextResponse.json(
-        { error: 'Gói Add Family yêu cầu nhập chính xác Email Google nhận lời mời.' },
+        { error: 'Gói Slot Family yêu cầu nhập chính xác Email Google nhận lời mời.' },
         { status: 400 }
       );
     }
@@ -351,7 +355,7 @@ export async function POST(req: Request) {
     let userTotalDeposit = serverStore.getUserLifetimeDeposit(localUser.id);
     try {
       const pgDep = await queryPostgres(
-        `SELECT COALESCE(SUM(amount), 0) AS total FROM public.deposit_requests WHERE user_id = $1 AND status IN ('approved', 'completed')`,
+        `SELECT COALESCE(SUM(amount), 0) AS total FROM public.deposit_requests WHERE user_id::text = $1 AND status IN ('approved', 'completed')`,
         [localUser.id]
       );
       userTotalDeposit = Math.max(userTotalDeposit, Number(pgDep?.rows?.[0]?.total || 0));
@@ -465,9 +469,10 @@ export async function POST(req: Request) {
       created_at: nowISO,
     });
 
-    // 4. Direct Database Persistence (PostgreSQL & Supabase)
+    // 4. Direct Database Persistence (PostgreSQL & Supabase) with real UUID & error check
+    let dbOrderSaved = false;
     try {
-      await queryPostgres(
+      const pgRes = await queryPostgres(
         `INSERT INTO public.orders (
           id, order_code, user_id, user_email, user_name, user_contact, delivery_contact,
           telegram_id, order_type, service_type, item_name, product_sku, sku,
@@ -475,14 +480,15 @@ export async function POST(req: Request) {
           partner_code, warranty_days, quantity, target_link, account_credentials,
           status, paid, deducted_balance, notes, created_at, updated_at
         ) VALUES (
-          $1, $1, $2, $3, $4, $5, $5,
-          $6, $7, $7, $8, $9, $9,
-          $10, $10, $11, $12, $13, $14,
-          $15, $16, $17, $18, $19,
-          'pending', true, true, $20, NOW(), NOW()
+          $1, $2, $3, $4, $5, $6, $6,
+          $7, $8, $8, $9, $10, $10,
+          $11, $11, $12, $13, $14, $15,
+          $16, $17, $18, $19, $20,
+          'pending', true, true, $21, NOW(), NOW()
         )
         ON CONFLICT (order_code) DO NOTHING`,
         [
+          crypto.randomUUID(),
           orderCode,
           localUser.id,
           localUser.email || '',
@@ -505,6 +511,7 @@ export async function POST(req: Request) {
           notes || '',
         ]
       );
+      if (pgRes !== null) dbOrderSaved = true;
     } catch (pgErr) {
       console.warn('[orders/create] Postgres persistence notice:', pgErr);
     }
@@ -512,9 +519,8 @@ export async function POST(req: Request) {
     try {
       const sbAdmin = getSupabaseAdmin();
       if (sbAdmin) {
-        await sbAdmin.from('orders').upsert(
+        const { error: sbErr } = await sbAdmin.from('orders').upsert(
           {
-            id: orderCode,
             order_code: orderCode,
             user_id: localUser.id,
             user_email: localUser.email || '',
@@ -539,7 +545,7 @@ export async function POST(req: Request) {
             target_link: targetLink,
             account_credentials: rawCredentials || null,
             paid: true,
-            deducted_balance: totalAmount,
+            deducted_balance: true,
             notes: notes || '',
             status: 'pending',
             created_at: nowISO,
@@ -547,9 +553,27 @@ export async function POST(req: Request) {
           },
           { onConflict: 'order_code' }
         );
+        if (!sbErr) dbOrderSaved = true;
       }
     } catch (sbErr) {
-      console.warn('[orders/create] Supabase sync notice:', sbErr);
+      console.warn('[orders/create] Supabase persistence notice:', sbErr);
+    }
+
+    if (isDatabaseConfigured() && !dbOrderSaved) {
+      // Rollback wallet balance atomically if DB failed to record order
+      if (totalAmount > 0) {
+        await adjustUserBalance({
+          userId: localUser.id,
+          delta: totalAmount,
+          type: 'REFUND',
+          referenceId: `${orderCode}-ROLLBACK`,
+          description: `Hoàn tiền tự động do lỗi ghi đơn #${orderCode} vào Database`,
+        }).catch(() => {});
+      }
+      return NextResponse.json(
+        { error: 'Không thể lưu đơn hàng vào Database. Số dư ví đã được bảo toàn, vui lòng thử lại!' },
+        { status: 500 }
+      );
     }
 
     // 5. Send Telegram Notification to Admin with 2-step Approval Buttons
@@ -576,12 +600,14 @@ export async function POST(req: Request) {
         } catch {}
       }
 
+      const isEmailOnly = deliveryMode === 'email_only';
       const text =
 `🔔 <b>[YUKISHOPMXH - ĐƠN HÀNG MỚI CẦN DUYỆT TAY]</b>
 🆔 <b>Mã đơn:</b> <code>${escapeHtml(orderCode)}</code>
 📦 <b>Gói x Số lượng:</b> <code>${escapeHtml(effectiveName)} x ${quantity}</code>
+📋 <b>Chế độ nhận hàng:</b> <code>${escapeHtml(deliveryMode)}</code>
 💰 <b>Thu khách:</b> <code>${formatVND(totalAmount)}</code>
-${rawCredentials ? `🔑 <b>Tài khoản (TK|MK|2FA):</b> <code>${escapeHtml(rawCredentials)}</code>\n` : ''}${isFamilyEmailRequired ? `📧 <b>Email Google Family:</b> <code>${escapeHtml(deliveryContact)}</code>\n` : ''}🏭 <b>Nguồn & Giá vốn:</b> Nguồn <code>${escapeHtml(supplierName)}</code> | Vốn: <code>${formatVND(costPrice)}</code>
+${rawCredentials ? `🔑 <b>Tài khoản (TK|MK|2FA):</b> <code>${escapeHtml(rawCredentials)}</code>\n` : ''}${isEmailOnly ? `📧 <b>Email Google Family:</b> <code>${escapeHtml(deliveryContact)}</code>\n` : ''}🏭 <b>Nguồn & Giá vốn:</b> Nguồn <code>${escapeHtml(supplierName)}</code> | Vốn: <code>${formatVND(costPrice)}</code>
 👤 <b>Khách hàng:</b> ${escapeHtml(localUser.fullName || localUser.username || 'Thành viên')}
 ✈️ <b>Telegram:</b> <code>${escapeHtml(telegramId || 'Không có')}</code> ${teleUsername ? `@${escapeHtml(teleUsername)}` : ''} ${teleChatUrl ? `(<a href="${teleChatUrl}">Mở Chat</a>)` : ''}
 📞 <b>SĐT Zalo:</b> <code>${escapeHtml(zaloPhone || 'Không có')}</code>
@@ -592,8 +618,12 @@ ${rawCredentials ? `🔑 <b>Tài khoản (TK|MK|2FA):</b> <code>${escapeHtml(raw
       const inlineKeyboard = {
         inline_keyboard: [
           [
-            { text: '✅ Duyệt & Giao Đơn', callback_data: `APPROVE_ORDER_${orderCode}` },
-            { text: '❌ Hủy & Hoàn Tiền', callback_data: `CANCEL_ORDER_${orderCode}` },
+            { text: '🔑 Duyệt & Gửi TK/Key', callback_data: `ord_ok:${orderCode}` },
+            { text: '✨ Đã Nâng / Add Family', callback_data: `ord_upg:${orderCode}` },
+          ],
+          [
+            { text: '⏳ Xin Thêm 2FA', callback_data: `ord_2fa:${orderCode}` },
+            { text: '❌ Hủy & Hoàn Ví', callback_data: `ord_no:${orderCode}` },
           ],
         ],
       };

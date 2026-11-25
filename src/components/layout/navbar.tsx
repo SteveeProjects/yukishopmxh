@@ -37,7 +37,7 @@ export function Navbar({ onOpenDrawer, onOpenSearch }: NavbarProps) {
       setHasUnreadNotice(false);
       return;
     }
-    fetch('/api/orders')
+    fetch('/api/orders', { cache: 'no-store', credentials: 'include' })
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data?.orders)) {

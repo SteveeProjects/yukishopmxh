@@ -432,38 +432,71 @@
   {
     "slug": "gemini",
     "name": "Google Gemini",
-    "category": "AI & Công Nghệ",
+    "category": "Google Gemini",
     "badgeLabel": "Google AI",
-    "shortDesc": "Trọn bộ các gói Google Gemini Pro & Ultra (Chính Chủ, Family Slot & KBH).",
-    "fullDesc": "Đầy đủ các gói Google Gemini Pro 24 Tháng Add Family (25k), Pro 3 Tháng, Gemini Plus 6 Tháng, Pro 12 Tháng Student, Slot Ultra 1 Tháng Family (239k) và Gói Ultra 3 Tháng (59k). Tất cả duyệt tay qua Bot Telegram, vận hành uy tín.",
+    "shortDesc": "Gói nâng cấp Google AI Ultra 5x & 20x (1 Tháng — Slot Family Chính Chủ).",
+    "fullDesc": "Chính chủ Slot Family Google AI Ultra 5x (85.000đ) và Google AI Ultra 20x (145.000đ) thời hạn 1 tháng. Chỉ cần nhập Email Google nhận lời mời Family, không cần mật khẩu.",
     "iconPath": "/assets/icons/products/gemini.jpg",
     "gradient": "from-sky-500 to-blue-600",
     "brandColor": "#0EA5E9",
     "packages": [
       {
-        "sku": "GEMINI-PRO-24M-FAMILY",
-        "name": "Google Gemini Pro 24 Tháng (Add Family / Slot)",
-        "price": 25000,
-        "originalPrice": 350000,
-        "duration": "24 Tháng",
-        "durationDays": 730,
+        "sku": "GEMINI-ULTRA-5X-1M",
+        "name": "Google AI Ultra 5x (1 Tháng — Slot Family)",
+        "price": 85000,
+        "originalPrice": 250000,
+        "duration": "1 Tháng",
+        "durationDays": 30,
         "status": "ACTIVE",
         "fulfillmentMode": "MANUAL",
-        "warranty": "Bảo hành 24 Tháng (Slot riêng tư)",
-        "warranty_days": 730,
-        "warrantyDays": 730,
-        "description": "Hình thức nâng cấp chính chủ qua nhóm Family (Slot riêng tư). Chỉ yêu cầu nhập Email Google nhận lời mời Family.",
-        "input_type": "GOOGLE_EMAIL",
+        "fulfillment_mode": "MANUAL",
+        "warranty": "Bảo hành 30 ngày (Slot riêng tư)",
+        "warranty_days": 30,
+        "warrantyDays": 30,
+        "description": "Gói Google AI Ultra 5x (1 Tháng) nâng cấp chính chủ qua lời mời Google Family (Slot riêng tư). Chỉ cần nhập Email Google nhận lời mời.",
+        "input_type": "email_only",
+        "delivery_mode": "email_only",
+        "custom_input_label": "Email Google nhận lời mời Slot Family (Không cần mật khẩu)",
+        "sort_order": 1,
         "benefits": [
-          "Nâng cấp chính chủ qua nhóm Family (Slot riêng tư)",
-          "Thời hạn 24 tháng truy cập Gemini Pro ổn định",
-          "Chỉ cần cung cấp Email Google nhận lời mời"
+          "Truy cập Google AI Ultra 5x chính chủ trong 30 ngày",
+          "Nâng cấp qua lời mời nhóm Google Family (Slot riêng tư)",
+          "Chỉ cần nhập Email Google, không cần cung cấp mật khẩu"
         ],
         "usageConditions": [
-          "Nhập chính xác Email Google cần nâng cấp",
-          "Tài khoản chưa tham gia nhóm Family nào trong 12 tháng qua"
+          "Nhập chính xác Email Google cần nhận lời mời Family",
+          "Tài khoản chưa tham gia nhóm Family nào trong 12 tháng gần nhất"
         ],
-        "stock": 100
+        "stock": 99
+      },
+      {
+        "sku": "GEMINI-ULTRA-20X-1M",
+        "name": "Google AI Ultra 20x (1 Tháng — Slot Family)",
+        "price": 145000,
+        "originalPrice": 450000,
+        "duration": "1 Tháng",
+        "durationDays": 30,
+        "status": "ACTIVE",
+        "fulfillmentMode": "MANUAL",
+        "fulfillment_mode": "MANUAL",
+        "warranty": "Bảo hành 30 ngày (Slot riêng tư)",
+        "warranty_days": 30,
+        "warrantyDays": 30,
+        "description": "Gói Google AI Ultra 20x (1 Tháng) cao cấp nâng cấp chính chủ qua lời mời Google Family (Slot riêng tư). Chỉ cần nhập Email Google.",
+        "input_type": "email_only",
+        "delivery_mode": "email_only",
+        "custom_input_label": "Email Google nhận lời mời Slot Family (Không cần mật khẩu)",
+        "sort_order": 2,
+        "benefits": [
+          "Hạn mức Ultra 20x mạnh nhất cho Veo, Deep Research & Coding",
+          "Nâng cấp chính chủ qua nhóm Google Family (Slot riêng tư)",
+          "Chỉ yêu cầu nhập Email Google nhận lời mời Family"
+        ],
+        "usageConditions": [
+          "Nhập chính xác Email Google cần nhận lời mời Family",
+          "Tài khoản chưa tham gia nhóm Family nào trong 12 tháng gần nhất"
+        ],
+        "stock": 99
       },
       {
         "sku": "GEMINI-PRO-3M",
@@ -478,6 +511,8 @@
         "warranty_days": 0,
         "warrantyDays": 0,
         "description": "Gói nâng cấp Gemini Pro thời hạn 3 tháng. Duyệt tay qua Bot Telegram (KBH).",
+        "input_type": "admin_deliver",
+        "delivery_mode": "admin_deliver",
         "benefits": [
           "Gói nâng cấp Gemini Pro thời hạn 3 tháng",
           "Xử lý đa phương thức, duyệt tay chuẩn xác qua Bot Telegram"
@@ -501,6 +536,8 @@
         "warranty_days": 0,
         "warrantyDays": 0,
         "description": "Gói Gemini Plus dùng Slot thời hạn 6 tháng. Duyệt tay qua Bot Telegram (KBH).",
+        "input_type": "admin_deliver",
+        "delivery_mode": "admin_deliver",
         "benefits": [
           "Truy cập Gemini Plus ổn định thời hạn 6 tháng [Slot]",
           "Chi phí tối ưu, bàn giao nhanh qua Bot Telegram"
@@ -524,6 +561,8 @@
         "warranty_days": 0,
         "warrantyDays": 0,
         "description": "Gói Gemini Pro ưu đãi Student thời hạn 12 tháng. Duyệt tay qua Bot Telegram (KBH).",
+        "input_type": "admin_deliver",
+        "delivery_mode": "admin_deliver",
         "benefits": [
           "Thời hạn sử dụng 12 tháng gói Gemini Pro Student",
           "Tối ưu học tập, nghiên cứu tài liệu và lập trình"
@@ -531,57 +570,6 @@
         "usageConditions": [
           "Gói Không Bảo Hành (KBH)",
           "Nhập Gmail / Telegram nhận đơn để Admin duyệt tay"
-        ],
-        "stock": 50
-      },
-      {
-        "sku": "GEMINI-ULTRA-1M-FAMILY",
-        "name": "Google AI Ultra — Slot Family 1 Tháng (Chính Chủ)",
-        "price": 239000,
-        "originalPrice": 450000,
-        "duration": "1 Tháng",
-        "durationDays": 30,
-        "status": "ACTIVE",
-        "fulfillmentMode": "MANUAL",
-        "warranty": "Bảo hành 30 ngày (Slot riêng tư)",
-        "warranty_days": 30,
-        "warrantyDays": 30,
-        "description": "Gói Google AI Ultra dạng Slot Family 1 Tháng (Chính Chủ). Nâng cấp trực tiếp qua lời mời Google Family, bảo toàn dữ liệu cá nhân.",
-        "input_type": "email_only",
-        "benefits": [
-          "Trải nghiệm mô hình Gemini Ultra cao cấp đỉnh cao nhất của Google",
-          "Thời hạn 1 Tháng nâng cấp chính chủ qua nhóm Family (Slot riêng tư)",
-          "Chỉ yêu cầu nhập Email Google nhận lời mời, không cần cung cấp mật khẩu"
-        ],
-        "usageConditions": [
-          "Nhập chính xác Email Google cần nâng cấp",
-          "Tài khoản chưa tham gia nhóm Family nào trong 12 tháng qua"
-        ],
-        "stock": 50
-      },
-      {
-        "sku": "GEMINI-ULTRA-3M",
-        "name": "Google AI Ultra — Gói 3 Tháng",
-        "price": 59000,
-        "originalPrice": 150000,
-        "duration": "3 Tháng",
-        "durationDays": 90,
-        "status": "ACTIVE",
-        "fulfillmentMode": "MANUAL",
-        "warranty": "Không bảo hành (KBH)",
-        "warranty_days": 0,
-        "warrantyDays": 0,
-        "description": "Gói Google AI Ultra thời hạn 3 tháng. Định dạng tài khoản hoặc nâng cấp (Duyệt tay qua Bot Telegram — KBH).",
-        "input_type": "credentials",
-        "requires_credentials": true,
-        "benefits": [
-          "Sử dụng mô hình Gemini Ultra 3 tháng mạnh mẽ",
-          "Tối ưu xử lý code, văn bản dài và phân tích dữ liệu đa phương thức",
-          "Bàn giao thông tin tài khoản hoặc nâng cấp trực tiếp"
-        ],
-        "usageConditions": [
-          "Nhập thông tin theo định dạng: Tài khoản | Mật khẩu | 2FA (nếu có)",
-          "Gói Không Bảo Hành (KBH) — đọc kỹ quy định trước khi đặt"
         ],
         "stock": 50
       }
@@ -1298,7 +1286,7 @@
   {
     "slug": "museai",
     "name": "Muse AI",
-    "category": "Trí Tuệ Nhân Tạo AI",
+    "category": "Muse AI",
     "badgeLabel": "Video & Audio",
     "shortDesc": "Nền tảng tạo video, lưu trữ và phát trực tuyến AI thế hệ mới.",
     "fullDesc": "Muse AI cung cấp kho lưu trữ và công cụ AI xử lý video âm thanh đỉnh cao.",
@@ -1308,19 +1296,23 @@
     "packages": [
       {
         "sku": "MUSE-AI-1B-TOKENS",
-        "name": "Muse AI — 1B Tokens (1 Tỷ Tokens)",
+        "name": "Muse AI 1B Tokens (Gói VIP)",
         "price": 12000,
         "originalPrice": 60000,
         "duration": "Theo Gói",
         "durationDays": 30,
         "status": "ACTIVE",
         "fulfillmentMode": "MANUAL",
+        "fulfillment_mode": "MANUAL",
         "warranty": "Không bảo hành (KBH)",
         "warranty_days": 0,
         "warrantyDays": 0,
-        "description": "Cấp hạn mức 1 tỷ tokens trên Muse AI. Yêu cầu nhập thông tin đăng nhập theo định dạng Tài khoản | Mật khẩu | 2FA.",
-        "input_type": "CREDENTIALS_PIPE",
+        "description": "Cấp hạn mức 1 tỷ tokens gói VIP trên Muse AI. Yêu cầu nhập Tài khoản & Mật khẩu cần kích hoạt.",
+        "input_type": "credentials",
+        "delivery_mode": "credentials",
+        "custom_input_label": "Tài khoản & Mật khẩu Muse AI cần nâng cấp",
         "requires_credentials": true,
+        "sort_order": 3,
         "benefits": [
           "Cấp hạn mức 1 tỷ tokens trên nền tảng Muse AI",
           "Xử lý và tạo video AI chất lượng cao"
@@ -2088,33 +2080,38 @@
   {
     "slug": "api-tool-sms",
     "name": "API Tool SMS",
-    "category": "API & Công Cụ Tool",
+    "category": "Dịch Vụ SMS & OTP",
     "badgeLabel": "Sản Phẩm Độc Lập",
-    "shortDesc": "Sản phẩm API Tool SMS riêng biệt, giao thức kết nối và giải pháp tích hợp an toàn.",
-    "fullDesc": "Cung cấp tài liệu API Tool SMS, token xác thực và quy trình phê duyệt thủ công từ Admin.",
+    "shortDesc": "Gói API Tool SMS 30 Ngày tốc độ cao, tích hợp dễ dàng và ổn định.",
+    "fullDesc": "Cung cấp gói API Tool SMS (30 Ngày), tài liệu kết nối, key xác thực và hỗ trợ cài đặt trực tiếp từ Admin.",
     "iconPath": "/assets/icons/api/sms-tool.svg",
     "gradient": "from-sky-600 to-blue-800",
     "brandColor": "#0284C7",
     "packages": [
       {
         "sku": "API-TOOL-SMS-120K",
-        "name": "API Tool SMS Tiêu Chuẩn",
+        "name": "API Tool SMS (30 Ngày)",
         "price": 120000,
         "originalPrice": 250000,
-        "duration": "Vĩnh Viễn",
-        "durationDays": null,
+        "duration": "30 Ngày",
+        "durationDays": 30,
         "status": "ACTIVE",
         "allow_voucher": false,
         "allowVoucher": false,
         "fulfillmentMode": "MANUAL",
-        "warranty": "Hỗ trợ tích hợp và tài liệu API trọn đời",
-        "warranty_days": 3650,
-        "warrantyDays": 3650,
-        "description": "Sản phẩm API Tool SMS riêng biệt. Không áp dụng mã giảm giá. Bàn giao bộ cài đặt + Token kết nối.",
+        "fulfillment_mode": "MANUAL",
+        "input_type": "admin_deliver",
+        "delivery_mode": "admin_deliver",
+        "custom_input_label": "Telegram / Zalo nhận bộ Key & Hướng dẫn API",
+        "sort_order": 4,
+        "warranty": "Bảo hành & hỗ trợ kỹ thuật 30 Ngày",
+        "warranty_days": 30,
+        "warrantyDays": 30,
+        "description": "Gói API Tool SMS (30 Ngày). Không áp dụng mã giảm giá. Admin tạo & bàn giao Key + Bộ cài đặt kết nối.",
         "benefits": [
-          "Trọn bộ API Tool SMS và source code cài đặt",
-          "Tài liệu tích hợp và token kết nối an toàn",
-          "Hỗ trợ cài đặt trực tiếp từ Admin"
+          "Cổng API Tool SMS ổn định trong 30 Ngày",
+          "Tài liệu tích hợp và Key xác thực an toàn",
+          "Admin tạo & bàn giao trực tiếp qua đơn hàng"
         ],
         "usageConditions": [
           "Sản phẩm API không áp dụng mã giảm giá"

@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { serverStore } from '@/lib/server-store';
 import { getSupabaseAdmin } from '@/lib/supabase/admin';
@@ -5,11 +6,10 @@ import { queryPostgres, autoEnsureTables, isDatabaseConfigured } from '@/lib/db'
 import { verifyAdminRequest } from '@/lib/admin-auth';
 import { getUnifiedCatalogData } from '@/lib/catalog/server-catalog';
 import { sanitizePlainText } from '@/lib/security-sanitize';
+import { normalizeDeliveryMode } from '@/lib/catalog/delivery-modes';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
-
-const ALLOWED_INPUT_TYPES = new Set(['none', 'credentials', 'email_only', 'admin_delivered']);
 
 export async function GET() {
   const isAdmin = await verifyAdminRequest();
@@ -52,7 +52,11 @@ export async function POST(req: NextRequest) {
     const supplier_name = sanitizePlainText(body.supplier_name || 'Kho Bản Quyền Yuki', 120);
     const cost_price = Math.max(0, Number(body.cost_price ?? Math.round(price * 0.7)));
     const warranty_days = body.warranty_days !== undefined ? Math.max(0, Number(body.warranty_days)) : 30;
-    const input_type = sanitizePlainText(body.input_type || 'none', 40).toLowerCase();
+    const rawDelivery = sanitizePlainText(body.delivery_mode || body.input_type || 'admin_deliver', 40);
+    const delivery_mode = normalizeDeliveryMode(rawDelivery, sku);
+    const custom_input_label = sanitizePlainText(body.custom_input_label || '', 200);
+    const fulfillment_mode =
+      String(body.fulfillment_mode || 'MANUAL').toUpperCase() === 'AUTO' ? 'AUTO' : 'MANUAL';
     const allow_voucher =
       body.allow_voucher !== undefined
         ? Boolean(body.allow_voucher)
@@ -65,9 +69,6 @@ export async function POST(req: NextRequest) {
     }
     if (!Number.isFinite(price) || price <= 0) {
       return NextResponse.json({ error: 'Giá bán sản phẩm phải lớn hơn 0đ.' }, { status: 400 });
-    }
-    if (!ALLOWED_INPUT_TYPES.has(input_type)) {
-      return NextResponse.json({ error: 'Loại đầu vào (input_type) không hợp lệ.' }, { status: 400 });
     }
 
     const newItem = {
@@ -86,7 +87,10 @@ export async function POST(req: NextRequest) {
       supplier_name,
       cost_price,
       warranty_days,
-      input_type,
+      input_type: delivery_mode,
+      delivery_mode,
+      custom_input_label,
+      fulfillment_mode,
       allow_voucher,
       updatedAt: new Date().toISOString(),
     };
@@ -98,9 +102,10 @@ export async function POST(req: NextRequest) {
       const pgRes = await queryPostgres(
         `INSERT INTO public.products (
           id, sku, name, category, display_section, price, sell_price, original_price, cost_price,
-          supplier_name, stock, sort_order, status, description, icon, warranty_days, input_type, allow_voucher, updated_at
+          supplier_name, stock, sort_order, status, description, icon, warranty_days,
+          input_type, delivery_mode, custom_input_label, fulfillment_mode, allow_voucher, updated_at
         )
-         VALUES ($1, $1, $2, $3, $4, $5, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, now())
+         VALUES ($1, $2, $3, $4, $5, $6, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $16, $17, $18, $19, now())
          ON CONFLICT (sku) DO UPDATE SET
            name = EXCLUDED.name,
            category = EXCLUDED.category,
@@ -117,9 +122,13 @@ export async function POST(req: NextRequest) {
            icon = EXCLUDED.icon,
            warranty_days = EXCLUDED.warranty_days,
            input_type = EXCLUDED.input_type,
+           delivery_mode = EXCLUDED.delivery_mode,
+           custom_input_label = EXCLUDED.custom_input_label,
+           fulfillment_mode = EXCLUDED.fulfillment_mode,
            allow_voucher = EXCLUDED.allow_voucher,
            updated_at = now()`,
         [
+          crypto.randomUUID(),
           sku,
           name,
           category,
@@ -134,7 +143,9 @@ export async function POST(req: NextRequest) {
           description,
           icon,
           warranty_days,
-          input_type,
+          delivery_mode,
+          custom_input_label,
+          fulfillment_mode,
           allow_voucher,
         ]
       );
@@ -148,7 +159,6 @@ export async function POST(req: NextRequest) {
       if (sbAdmin) {
         const { error } = await sbAdmin.from('products').upsert(
           {
-            id: sku,
             sku,
             name,
             category,
@@ -163,7 +173,10 @@ export async function POST(req: NextRequest) {
             description,
             icon,
             warranty_days,
-            input_type,
+            input_type: delivery_mode,
+            delivery_mode,
+            custom_input_label,
+            fulfillment_mode,
             allow_voucher,
             updated_at: new Date().toISOString(),
           },
@@ -229,9 +242,20 @@ export async function PUT(req: NextRequest) {
     const cost_price = body.cost_price !== undefined ? Math.max(0, Number(body.cost_price)) : undefined;
     const warranty_days =
       body.warranty_days !== undefined ? Math.max(0, Number(body.warranty_days)) : undefined;
-    const input_type =
-      body.input_type !== undefined
-        ? sanitizePlainText(body.input_type, 40).toLowerCase()
+    const rawDelivery =
+      body.delivery_mode !== undefined
+        ? sanitizePlainText(body.delivery_mode, 40)
+        : body.input_type !== undefined
+        ? sanitizePlainText(body.input_type, 40)
+        : undefined;
+    const delivery_mode = rawDelivery !== undefined ? normalizeDeliveryMode(rawDelivery, sku) : undefined;
+    const custom_input_label =
+      body.custom_input_label !== undefined ? sanitizePlainText(body.custom_input_label, 200) : undefined;
+    const fulfillment_mode =
+      body.fulfillment_mode !== undefined
+        ? String(body.fulfillment_mode).toUpperCase() === 'AUTO'
+          ? 'AUTO'
+          : 'MANUAL'
         : undefined;
     const allow_voucher =
       body.allow_voucher !== undefined
@@ -246,9 +270,6 @@ export async function PUT(req: NextRequest) {
     if (!Number.isFinite(price) || price <= 0) {
       return NextResponse.json({ error: 'Giá bán sản phẩm phải lớn hơn 0đ.' }, { status: 400 });
     }
-    if (input_type !== undefined && !ALLOWED_INPUT_TYPES.has(input_type)) {
-      return NextResponse.json({ error: 'Loại đầu vào (input_type) không hợp lệ.' }, { status: 400 });
-    }
 
     let dbWriteOk = false;
     await autoEnsureTables().catch(() => {});
@@ -257,26 +278,30 @@ export async function PUT(req: NextRequest) {
       const pgRes = await queryPostgres(
         `INSERT INTO public.products (
           id, sku, name, category, display_section, price, sell_price, original_price, stock, sort_order,
-          status, description, icon, warranty_days, input_type, allow_voucher, updated_at
+          status, description, icon, warranty_days, input_type, delivery_mode, custom_input_label, fulfillment_mode, allow_voucher, updated_at
         )
-         VALUES ($1, $1, $2, $3, $4, $5, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, now())
+         VALUES ($1, $2, $3, $4, $5, $6, $6, $7, $8, $9, $10, $11, $12, $13, $14, $14, $15, $16, $17, now())
          ON CONFLICT (sku) DO UPDATE SET
            price = EXCLUDED.price,
            sell_price = EXCLUDED.sell_price,
            original_price = EXCLUDED.original_price,
            stock = EXCLUDED.stock,
-           sort_order = COALESCE($8, public.products.sort_order),
+           sort_order = COALESCE($9, public.products.sort_order),
            status = EXCLUDED.status,
            name = COALESCE(NULLIF(EXCLUDED.name, ''), public.products.name),
            category = COALESCE(NULLIF(EXCLUDED.category, ''), public.products.category),
            display_section = COALESCE(NULLIF(EXCLUDED.display_section, ''), public.products.display_section),
            description = COALESCE(NULLIF(EXCLUDED.description, ''), public.products.description),
            icon = COALESCE(NULLIF(EXCLUDED.icon, ''), public.products.icon),
-           warranty_days = COALESCE($12, public.products.warranty_days),
-           input_type = COALESCE(NULLIF($13, ''), public.products.input_type),
-           allow_voucher = COALESCE($14, public.products.allow_voucher),
+           warranty_days = COALESCE($13, public.products.warranty_days),
+           input_type = COALESCE(NULLIF($14, ''), public.products.input_type),
+           delivery_mode = COALESCE(NULLIF($14, ''), public.products.delivery_mode),
+           custom_input_label = COALESCE($15, public.products.custom_input_label),
+           fulfillment_mode = COALESCE(NULLIF($16, ''), public.products.fulfillment_mode),
+           allow_voucher = COALESCE($17, public.products.allow_voucher),
            updated_at = now()`,
         [
+          crypto.randomUUID(),
           sku,
           name || '',
           category || '',
@@ -289,7 +314,9 @@ export async function PUT(req: NextRequest) {
           description || '',
           icon || '',
           warranty_days ?? null,
-          input_type ?? null,
+          delivery_mode ?? null,
+          custom_input_label ?? null,
+          fulfillment_mode ?? null,
           allow_voucher ?? null,
         ]
       );
@@ -302,7 +329,6 @@ export async function PUT(req: NextRequest) {
       const sbAdmin = getSupabaseAdmin();
       if (sbAdmin) {
         const upsertPayload: any = {
-          id: sku,
           sku,
           price,
           sell_price: price,
@@ -318,7 +344,12 @@ export async function PUT(req: NextRequest) {
         if (icon) upsertPayload.icon = icon;
         if (sort_order !== undefined) upsertPayload.sort_order = sort_order;
         if (warranty_days !== undefined) upsertPayload.warranty_days = warranty_days;
-        if (input_type !== undefined) upsertPayload.input_type = input_type;
+        if (delivery_mode !== undefined) {
+          upsertPayload.input_type = delivery_mode;
+          upsertPayload.delivery_mode = delivery_mode;
+        }
+        if (custom_input_label !== undefined) upsertPayload.custom_input_label = custom_input_label;
+        if (fulfillment_mode !== undefined) upsertPayload.fulfillment_mode = fulfillment_mode;
         if (allow_voucher !== undefined) upsertPayload.allow_voucher = allow_voucher;
 
         const { error } = await sbAdmin.from('products').upsert(upsertPayload, { onConflict: 'sku' });
@@ -354,13 +385,88 @@ export async function PUT(req: NextRequest) {
       supplier_name,
       cost_price,
       warranty_days,
-      input_type,
+      input_type: delivery_mode ?? overrides.updatedItems[sku]?.input_type,
+      delivery_mode: delivery_mode ?? overrides.updatedItems[sku]?.delivery_mode,
+      custom_input_label: custom_input_label ?? overrides.updatedItems[sku]?.custom_input_label,
+      fulfillment_mode: fulfillment_mode ?? overrides.updatedItems[sku]?.fulfillment_mode,
       allow_voucher,
       updatedAt: new Date().toISOString(),
     };
     serverStore.saveCatalogOverrides(overrides);
 
     return NextResponse.json({ success: true, message: 'Đã cập nhật sản phẩm thành công!' });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
+
+export async function PATCH(req: NextRequest) {
+  const isAdmin = await verifyAdminRequest();
+  if (!isAdmin) {
+    return NextResponse.json({ error: 'Unauthorized. Yêu cầu quyền Quản Trị Viên.' }, { status: 401 });
+  }
+
+  try {
+    const body = await req.json().catch(() => ({}));
+    const items: Array<{ sku: string; sort_order: number; category?: string; display_section?: string }> =
+      Array.isArray(body.items) ? body.items : Array.isArray(body.orders) ? body.orders : [];
+
+    if (items.length === 0) {
+      return NextResponse.json({ error: 'Thiếu danh sách sản phẩm cần sắp xếp.' }, { status: 400 });
+    }
+
+    await autoEnsureTables().catch(() => {});
+    const overrides = serverStore.loadCatalogOverrides();
+    if (!overrides.updatedItems) overrides.updatedItems = {};
+    let dbOk = false;
+
+    for (const item of items) {
+      const sku = sanitizePlainText(item.sku, 80).toUpperCase();
+      if (!sku) continue;
+      const sortOrder = Math.max(0, Math.floor(Number(item.sort_order || 0)));
+      const cat = item.category ? sanitizePlainText(item.category, 80) : undefined;
+      const sec = item.display_section ? sanitizePlainText(item.display_section, 80) : cat;
+
+      try {
+        const res = await queryPostgres(
+          `UPDATE public.products
+           SET sort_order = $1,
+               category = COALESCE(NULLIF($2, ''), category),
+               display_section = COALESCE(NULLIF($3, ''), display_section),
+               updated_at = NOW()
+           WHERE sku = $4`,
+          [sortOrder, cat || '', sec || '', sku]
+        );
+        if (res !== null) dbOk = true;
+      } catch {}
+
+      try {
+        const sb = getSupabaseAdmin();
+        if (sb) {
+          const patch: any = { sort_order: sortOrder, updated_at: new Date().toISOString() };
+          if (cat) patch.category = cat;
+          if (sec) patch.display_section = sec;
+          const { error } = await sb.from('products').update(patch).eq('sku', sku);
+          if (!error) dbOk = true;
+        }
+      } catch {}
+
+      overrides.updatedItems[sku] = {
+        ...(overrides.updatedItems[sku] || {}),
+        sku,
+        sort_order: sortOrder,
+        ...(cat ? { category: cat } : {}),
+        ...(sec ? { display_section: sec } : {}),
+        updatedAt: new Date().toISOString(),
+      };
+    }
+
+    if (isDatabaseConfigured() && !dbOk) {
+      return NextResponse.json({ error: 'Không thể lưu thứ tự sắp xếp vào Database.' }, { status: 500 });
+    }
+
+    serverStore.saveCatalogOverrides(overrides);
+    return NextResponse.json({ success: true, message: 'Đã cập nhật thứ tự hiển thị thành công!' });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
